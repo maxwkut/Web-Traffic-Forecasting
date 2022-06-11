@@ -1,0 +1,108 @@
+---
+title: Web Traffic Forecasting
+subtitle: Time Series Analysis
+output:
+  pdf_document:
+fontsize: 12pt
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Team Members (Group 11)
+
+* Jackson Smith
+  + Email:
+  + Major:
+  + Responsibility:
+* Jingcheng Xia
+  + Email:
+  + Major:
+  + Responsibility:
+* Max Kutschinski
+  + Email: mwk556@tamu.edu
+  + Major: Statistics (Distance)
+  + Responsibility:
+* Samuel Burge
+  + Email:
+  + Major:
+  + Responsibility:
+* Shree Karimkolikuzhiyil
+  + Email:
+  + Major:
+  + Responsibility:
+
+
+\newpage
+
+## Introduction
+
+<!-- Introduce Your Data: Explain the context and background story of your data -->
+
+Why web traffic forecasting is important:
+
+- optimize web server allocation
+- helps enterprises plan their IT infrastructure strategy
+- facilitates seamless end user experience and satisfied customers
+
+About the dataset: 
+
+- contains 5 years of daily time series data of user visits to an academic website
+- Recorded variables: 
+   - Number of page loads
+   - Number of unique visitors (unique visitors are identified through IP address within a 6 hour window)
+   - Number of returning visitors (identified by cookies if accepted)
+   - Number of first-time visitors
+- Hence number of unique visitors is the number of returning visitors + number of first-time visitors.
+- The data was collected through a traffic monitoring service known as StatCounter.
+
+
+
+
+<!-- Plot the Data and summarize your preliminary findings: trend, cycle, volatility, etc. --> 
+
+```{r include=F, echo=F}
+library(readr)
+library(astsa)
+library(ggplot2)
+
+webData = read_csv("WebTraffic.csv",
+                   skip = 1,
+                   col_names = c("Day",
+                                 "DayOfWeek",
+                                 "Date",
+                                 "PageLoads",
+                                 "UniqueVisits",
+                                 "FirstTimeVisits",
+                                 "ReturningVisits"),
+                   col_types = cols("Day" = "f",
+                                    "Date" = col_date("%m/%d/%Y")))
+```
+
+```{r include=F, echo=F}
+colnames(webData)
+anyNA(webData)
+dim(webData)
+str(webData)
+summary(webData)
+```
+
+```{r echo=F, fig.width = 18, fig.height=7}
+theme_set(theme_bw())
+ggplot(webData,aes(Date, UniqueVisits))+
+  geom_line()+
+  scale_x_date(date_labels = "%Y", date_breaks = "1 year")+
+  labs(title = "Unique Page Visits Over Time")+ 
+  ylab("Unique Visits")+
+  theme(text = element_text(size = 30)) 
+
+```
+
+- strong time of year effect
+
+
+
+
+
+
