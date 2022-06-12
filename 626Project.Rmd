@@ -25,8 +25,8 @@ knitr::opts_chunk$set(echo = TRUE)
   + Major: Statistics (Distance)
   + Responsibility:
 * Samuel Burge
-  + Email:
-  + Major:
+  + Email: samuelburge@tamu.edu
+  + Major: Statistics (Distance)
   + Responsibility:
 * Shree Karimkolikuzhiyil
   + Email:
