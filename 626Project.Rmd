@@ -1,12 +1,12 @@
 ---
-title: \vspace{-2.0cm}Web Traffic Forecasting
+title: \vspace{-2.0cm} \textbf{Web Traffic Forecasting}
 subtitle: Time Series Analysis
 author:
-- \small Shree Karimkolikuzhiyil; Statistics, M.S. ([shreejesh\@tamu.edu](mailto:shreejesh@tamu.edu){.email})
-- \small Jingcheng Xia; Computer Science, B.S.  ([sixtyfour64\@tamu.edu](mailto:sixtyfour64@tamu.edu){.email})
-- \small Jackson Smith; Statistics, M.S. ([jackson.t.smith\@tamu.edu](mailto:jackson.t.smith@tamu.edu){.email})
-- \small Samuel Burge; Statistics, M.S. ([samuelburge\@tamu.edu](mailto:samuelburge@tamu.edu){.email})
-- \small Max Kutschinski; Statistics, M.S. ([mwk556\@tamu.edu](mailto:mwk556@tamu.edu){.email})
+- \small \textbf{Shree Karimkolikuzhiyil}; Programming; Statistics, M.S. (Distance); [shreejesh\@tamu.edu](mailto:shreejesh@tamu.edu){.email}
+- \small \textbf{Jingcheng Xia}; Computations; Computer Science, B.S. (On-Campus); [sixtyfour64\@tamu.edu](mailto:sixtyfour64@tamu.edu){.email}
+- \small \textbf{Jackson Smith}; Analysis; Statistics, M.S. (Distance);  [jackson.t.smith\@tamu.edu](mailto:jackson.t.smith@tamu.edu){.email}
+- \small \textbf{Samuel Burge}; Writing; Statistics, M.S. (Distance);  [samuelburge\@tamu.edu](mailto:samuelburge@tamu.edu){.email}
+- \small \textbf{Max Kutschinski}; Theory; Statistics, M.S. (Distance); [mwk556\@tamu.edu](mailto:mwk556@tamu.edu){.email}
 
 
 
@@ -29,7 +29,7 @@ showtext_auto()
 <!-- Introduce Your Data: Explain the context and background story of your data -->
 The objective of this analysis is to forecast daily unique visitors to an academic website containing lecture notes and supplemental material related to statistics. Predicting website traffic allows IT departments to manage project throughput and prioritize maintenance and enhancements to website functionality and effectively allocate web server resources. Web traffic is also a key indicator of customer growth and expansion, as well as sustaining recurring customers and ingrained growth. The details provided by web traffic throughput reports contain many metrics, including page loads, returning visitors, and unique visits, each of which convey a different picture and set of information for an organization. As well, having a picture of expected throughput and confirming (or denying) expectations with reality allows a business to understand unexpected growth and/or unexpected decay in business development.
 
-The data contains five years of daily time series data of user visits. There are four features in the data set, which are the daily counts for the number of page loads, first-time visitors, returning visitors, and unique visitors.^[Returning visitors are identified through allowed cookies on a user's device, and the total returning and first-time visitors is, by definition, the number of unique visitors. Users are identified through the IP address within a 6 hour window.] An initial plot of the data shows strong seasonality and volatility, but doesn't appear to have any discernible trend or cyclical behavior. An explanation for this could be due to the nature of the website. Students would likely be the largest share of users for a website of this nature, and the seasonality seems associated with the academic calender typically seen at academic institutions.  
+The data contains five years of daily time series data of user visits. There are four features in the data set, which include daily counts for the number of page loads, first-time visitors, returning visitors, and unique visitors.^[A visit is defined as a stream of hits on one or more pages on the site on a given day by the same user within a 6 hour window, identified by the IP address of the specific device. Returning visitors are identified through allowed cookies on a user's device, and the total returning and first-time visitors is, by definition, the number of unique visitors.] An initial plot of the data shows strong seasonality and volatility, but doesn't appear to have any discernible trend or cyclical behavior. An explanation for this could be due to the nature of the website. Students would likely be the largest share of users for a website of this nature, and the seasonality seems associated with the academic calender typically seen at academic institutions.  
 \  
 
 <!-- Plot the Data and summarize your preliminary findings: trend, cycle, volatility, etc. -->
