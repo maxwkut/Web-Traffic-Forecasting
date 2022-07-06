@@ -14,29 +14,32 @@ output:
   pdf_document
 fontsize: 11pt
 ---
-\vspace{-1.5cm}
-```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
+\vspace{-1.5cm}  
 
-# package to use the Latex font in plots
-library(showtext)
-font_add(family = "cm", regular = "computermodern.ttf")
-showtext_auto()
-```
 ---
 ## Introduction and Motivation
 
-<!-- Introduce Your Data: Explain the context and background story of your data -->
+<!-- Introduce Your data: Explain the context and background story of your data -->
 The objective of this analysis is to forecast daily unique visitors to an academic website containing lecture notes and supplemental material related to statistics. Predicting website traffic allows IT departments to manage project throughput and prioritize maintenance and enhancements to website functionality and effectively allocate web server resources. Web traffic is also a key indicator of customer growth and expansion, as well as sustaining recurring customers and ingrained growth. The details provided by web traffic throughput reports contain many metrics, including page loads, returning visitors, and unique visits, each of which convey a different picture and set of information for an organization. As well, having a picture of expected throughput and confirming (or denying) expectations with reality allows a business to understand unexpected growth and/or unexpected decay in business development.
 
 The data contains five years of daily time series data of user visits. There are four features in the data set, which include daily counts for the number of page loads, first-time visitors, returning visitors, and unique visitors.^[A visit is defined as a stream of hits on one or more pages on the site on a given day by the same user within a 6 hour window, identified by the IP address of the specific device. Returning visitors are identified through allowed cookies on a user's device, and the total returning and first-time visitors is, by definition, the number of unique visitors.] An initial plot of the data shows strong seasonality and volatility, but doesn't appear to have any discernible trend or cyclical behavior. An explanation for this could be due to the nature of the website. Students would likely be the largest share of users for a website of this nature, and the seasonality seems associated with the academic calender typically seen at academic institutions.  
 \  
 
-<!-- Plot the Data and summarize your preliminary findings: trend, cycle, volatility, etc. -->
+<!-- Plot the data and summarize your preliminary findings: trend, cycle, volatility, etc. -->
 ```{r include=F, echo=F}
+# load necessary packages
 library(readr)
 library(astsa)
 library(ggplot2)
+library(gridExtra)
+library(lubridate)
+library(ggfortify) # imports autoplot() function for plotting acf plots more easily
+library(tidyverse)
+
+# package to use the Latex font in plots
+library(showtext)
+font_add(family = "cm", regular = "computermodern.ttf")
+showtext_auto()
 
 webData = read_csv("WebTraffic.csv",
                    skip = 1,
@@ -60,13 +63,13 @@ summary(webData)
 ```  
 
 
-```{r echo=F, fig.width = 17, fig.height=6}
+```{r echo=F, fig.width = 17, fig.height = 6}
 
 # Set the theme for the chart
 theme_set(theme_bw() + theme(text = element_text(family = 'cm')))
 
 # Plot the daily count of unique page visits
-ggplot(webData,aes(Date, UniqueVisits)) +
+ggplot(webData, aes(Date, UniqueVisits)) +
   
   geom_line(color = '#437cb5') +
   
@@ -78,7 +81,148 @@ ggplot(webData,aes(Date, UniqueVisits)) +
   
   theme(text = element_text(size = 30)) 
 
+# Plot the daily count of unique page visits
+ggplot(webData[1:90, ], aes(Date, UniqueVisits)) +
+  
+  geom_line(color = '#437cb5') +
+  
+  geom_point(color = '#437cb5') +
+  
+  scale_x_date(date_breaks = "1 week",
+               date_minor_breaks = "1 day",
+               date_labels = '%W') +
+  
+  labs(title = "Weekly Page Visits", caption = 'Sample of the first several weeks in the time series to observe the weekly behavior in the data.') + 
+  
+  ylab("Unique Visits") +
+  
+  theme(text = element_text(size = 30),
+        plot.caption = element_text(size = 15), 
+        axis.text.x = element_text(size = 12, angle = 90),
+        panel.grid.major.x = element_line(color = 'darkgrey'),
+        panel.grid.minor.x = element_line(color = 'lightgrey', linetype = 'dashed')) 
+
 ```
 
+```{r echo = F, fig.width = 17, fig.height = 10}
+# Plot the daily count of unique page visits
+PageLoads_plot = ggplot(webData,aes(Date, PageLoads)) +
+  
+  geom_line(color = '#edf8b1') +
+  
+  scale_x_date(date_labels = "%Y", date_breaks = "1 year") +
+  
+  labs(x= '', y = '', title = "Page Loads") +
+  
+  theme(text = element_text(size = 30, family = 'cm'),
+        plot.title = element_text(size = 25, hjust = 0.5))
 
+# Plot the daily count of unique page visits
+UniqueVisits_plot = ggplot(webData,aes(Date, UniqueVisits)) +
+  
+  geom_line(color = '#7fcdbb') +
+  
+  scale_x_date(date_labels = "%Y", date_breaks = "1 year") +
+  
+  labs(x= '', y = '', title = "First Time Visits") +
+  
+  theme(text = element_text(size = 30, family = 'cm'),
+        plot.title = element_text(size = 25, hjust = 0.5))
 
+# Plot the daily count of first time visits
+FirstTimeVisits_plot = ggplot(webData,aes(Date, FirstTimeVisits)) +
+  
+  geom_line(color = '#c7e9b4') +
+  
+  scale_x_date(date_labels = "%Y", date_breaks = "1 year") +
+  
+  labs(x= 'Date', y = '', title ="Returning Visits") +
+  
+  theme(text = element_text(size = 30, family = 'cm'),
+        plot.title = element_text(size = 25, hjust = 0.5))
+
+grid.arrange(PageLoads_plot, UniqueVisits_plot, FirstTimeVisits_plot, nrow = 3)
+```
+
+<!-- 6. Transform the data to stationarity using regression (follow Example 3.5 in the text
+as much as possible); Explain differencing, log-transform,.... if used.  -->
+```{r echo=F, fig.width = 17, fig.height = 6, warning = F}
+
+# Extract date features and difference the time series
+webData <- webData %>%
+  mutate(t = time(webData$UniqueVisits), # time index
+         DayOfMonth = day(Date),
+         Year = as.factor(year(Date)),
+         Month = month(Date),
+         MonthCat = as.factor(Month),
+         
+         # Crude way of distinguishing school breaks; other way to do this?
+         SummerBreak = ifelse((Month >= 5 & Month <= 8), T, F),
+         WinterBreak = ifelse((Month == 12 & DayOfMonth > 15), T,
+                              ifelse((Month == 1 & DayOfMonth < 15),T,F)),
+         Is2017 = ifelse(Year == 2017, T, F),
+         
+         # Page loads divided by unique visits to get daily average per capita
+         LoadsPerCapita = PageLoads / UniqueVisits,
+         
+         # Convert the day of week to factor to use in lm() functions
+         DayOfWeek = as.factor(DayOfWeek),
+         
+         # Calculate various lags (daily, weekly, annual)
+         DailyDiff = UniqueVisits - lag(UniqueVisits, 1),
+         WeeklyDiff = UniqueVisits - lag(UniqueVisits, 7),
+         AnnualDiff = UniqueVisits - lag(UniqueVisits, 365))
+
+# Fit model using dummy variables for the day of week (strong seasonality)
+fit <- lm(UniqueVisits ~ DayOfWeek + MonthCat + SummerBreak + WinterBreak, data = webData)
+summary(fit)
+par(family = 'cm', mfrow = c(2,2))
+plot(fit)
+
+y = webData$UniqueVisits - predict(fit, newdata = webData[, c('DayOfWeek', 'MonthCat', 'SummerBreak', 'WinterBreak')])
+webData$y = y
+
+# Plot the daily count of the differenced unique page visits
+ggplot(webData, aes(x = Date, y)) +
+  
+  geom_line(color = '#437cb4') +
+  
+  scale_x_date(date_labels = "%Y", date_breaks = "1 year") +
+  
+  labs(title = "Weekly Differenced Unique Page Visits") + 
+  
+  ylab("Unique Visits") +
+  
+  theme(text = element_text(size = 20))
+
+# Compute the sample ACF function for the differenced series
+lags = 100
+acf_values = acf(webData$y, lag.max = lags, plot = F) # remove first value for diffs
+sample_acf = data.frame(lag = acf_values$lag,
+                        acf = acf_values$acf)
+
+# Plot the sample ACF function for the differenced series
+autoplot(acf(webData$y, lag.max = lags, plot = F)) +
+  geom_point(data = sample_acf, mapping = aes(x = lag, y = acf), size = 0.5) +
+  scale_x_continuous(breaks = c(0, 7, 14, 21, 28)) +
+  scale_y_continuous(limits = c(-1, 1)) +
+  theme_minimal() +
+  theme(text = element_text(family = 'cm')) +
+  labs(caption = 'Figure 3: Sample autocorrelation function (ACF) of differenced time series with 30 lags, showing the weekly seasonality (and associated autocorrelation) for weekly time periods.')
+
+```
+
+<!-- 7. ACF and PACF Plots: Use correlogram and partial correlogram to formulate ARMA(p,
+q) models for the ”stationary” data. If in doubt, choose from AR models, these are
+simple to estimate, interpret and predict. -->
+
+<!-- 8. Fit and Forecast: Estimate the model parameters using simple-minded methods like
+the least squares, Yule-Walker estimates, etc. -->
+
+<!-- 9. Diagnostic: Check the residuals to see if they are white noise. -->
+
+<!-- 10. You may want to consult the first three chapters of the text for notation, terminologies
+and ideas. -->
+
+<!-- 11. Incorporate as much as feasible the comments/questions came up during the first two
+presentations. Use model building techniques from Chapter 5 -->
