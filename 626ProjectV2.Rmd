@@ -37,6 +37,7 @@ library(tidyverse)
 library(forecast) 
 library(Hmisc) # Lowess smoothing
 library(tseries) #arma
+library(knitr) #table
 library(showtext) # package to use the Latex font in plots
 font_add(family = "cm", regular = "computermodern.ttf")
 showtext_auto()
@@ -125,7 +126,7 @@ autoplot(tsData[,"UniqueVisits"], color = '#437cb5')+
 \newpage
 
 
-A popular approach in addressing non-stationarity due to seasonalities is to eliminate these effects via seasonal differencing. The seasonal difference of a time series is the series of changes from one season to the next, which is defined as follows:
+A popular approach in addressing non-stationarity due to seasonalities is to eliminate these effects via seasonal differencing. The seasonal difference of a time series is the series of changes from one season to the next, which is defined as folllows:
 
 \begin{equation}
   \triangledown x_t=x_t-x_{t-m}
@@ -137,7 +138,10 @@ Hence, yearly and weekly seasonalities will be handled by computing the lag 365 
   \triangledown x_t^*=(x_t-x_{t-365})-x_{t-7}
 \end{equation}
 
-```{r Fig4, echo=F, message=F}
+Time plots of our series at different levels of differencing are displayed in Figure 4. The differenced series appears to be stationary with constant mean and variance.
+\newline
+
+```{r Fig4, echo=F, message=F, fig.height=5}
 # seasonal differences
 diff0 = tsData[,"UniqueVisits"]
 diff1 = diff(tsData[,"UniqueVisits"],lag=365) # eliminate yearly seasonality
@@ -146,22 +150,27 @@ diff2=  diff(diff1,lag=7) # eliminate weekly seasonality
 # Time plots
 autoplot(diff0)+
   geom_line(color = '#437cb5') +
-  labs(title = "Time plots of differenced series", subtitle = "No difference")
+  labs(title = "Time Plots of Differenced Series", subtitle = "No Difference")+
+  theme(plot.title = element_text(hjust=0.5))+
+  ylab("Unique Visits")
 autoplot(diff1)+
   geom_line(color = '#437cb5')+
-  labs(subtitle = "Lag 365 difference")
+  labs(subtitle = "Lag 365 Difference")
 autoplot(diff2)+
   geom_line(color = '#437cb5') +
-  labs(subtitle = "Lag 7 difference of previous difference", caption = 'Figure 4: Time plots of differenced series')
+  labs(subtitle = "Lag 7 Difference of Previous Difference", caption = 'Figure 4: Time plots of differenced series')
 ```
+\newpage
 
-```{r Fig5, echo=F, message=F}
+The ACF and PACF of the differenced series $\triangledown x_t^*$ are displayed in Figure 5. Neither the ACF nor the PACF seems to cut off after a certain lag, which would be indicative of an AR or MA process. Rather, both of them appear to tail off over time. 
+\newline
+
+```{r Fig5, echo=F, message=F, fig.height=5}
 # ACF and PACF plots
-ggAcf(diff2)+
-  geom_line(color = '#437cb5')+
-  labs(title = "ACF and PACF after differencing")
-ggPacf(diff2)+
-  geom_line(color = '#437cb5')+
+ggAcf(diff2, color='#437cb5')+
+  labs(title = "ACF and PACF After Differencing")+
+  theme(plot.title = element_text(hjust=0.5))
+ggPacf(diff2, color='#437cb5')+
   labs(title="", caption = 'Figure 5: ACF and PACF')
 ```
 
@@ -174,7 +183,7 @@ Problems with this approach:
 
 ## Modeling
 
-Both ACF and PACF show a slow decay indicating that a ARMA(2,2) model could be appropriate for the series. A auto regressive moving average of order p and q (ARMA(p,q)) model is defined in Eq(3).
+Both ACF and PACF show a slow decay indicating that an ARMA(2,2) model could be appropriate for the series. An auto regressive moving average of order p and q (ARMA(p,q)) model is defined in Eq(3):
 
 \begin{equation}
    x_t = \alpha + \phi_1x_{t-1}+\cdot\cdot\cdot+\phi_px_{t-p}+w_t+\theta_1\omega_{t-1}+\cdot\cdot\cdot+\theta_p\omega_{t-q}\\
@@ -186,57 +195,70 @@ Both ACF and PACF show a slow decay indicating that a ARMA(2,2) model could be a
 arma22 = arma(diff2, order=c(2,2), include.intercept = FALSE)
 ```
 
-The parameters of the ARMA(2,2) model are estimated via conditional least squares which are displayed in Eq(4).
+The parameters of the ARMA(2,2) model are estimated via conditional least squares and are displayed in Eq(4).
 
 \begin{equation}
   \hat{x}_t = 0.44x_{t-1}+0.13x_{t-2}+w_t+0.05\omega_{t-1}-0.09\omega_{t-2}
 \end{equation}
-
-The residual plot in Figure 6 looks like white noise. 
+\newpage
+Figure 6 displays of plot of the residuals of the fitted ARMA(2,2) model. The residuals seem to behave like white noise, being centered around 0 with constant mean and variance. 
+\newline
 
 ```{r Fig6, echo=FALSE, warning=F}
 res = residuals(arma22)
 autoplot(res)+
   geom_line(color = '#437cb5') +
-  labs(title = "Residual plot", caption = 'Figure 6: Residuals of ARMA(2,2) model')
+  labs(title = "Residual Plot", caption = 'Figure 6: Residuals of ARMA(2,2) model')+
+  ylab("Residual")
 ```
 
-Polynomial roots are calculated to ensure that there are no redundant parameters in the model. There is no sign of redundancy.
+
+Table 1 contains the roots of the model's polynomials. Since they appear to be different from each other by a reasonable margin, we can conclude that there is no parameter redundancy in the model.
+
 ```{r roots, echo = F}
 # checking for roots
 AR = c(1, -arma22$coef[[1]], -arma22$coef[[2]])
 MA = c(1, arma22$coef[[3]], arma22$coef[[4]])
-polyroot(AR)
-polyroot(MA)
+polyAR = polyroot(AR)
+polyMA = polyroot(MA)
+roots = round(data.frame(polyAR,polyMA),3)
+
+kable(roots, col.names = c("AR","MA"), align = c("c","c"), caption = "Roots of polynomials")
 ```
 
-Other results:
+The fitted values of the ARIMA(2,2) model are plotted against the actual values of the differenced series $\triangledown x_t^*$ in Figure 7. 
+\newline
 
-```{r echo=F, message=FALSE, results='hide'}
-sarima202 = sarima(diff2, p=2, d=0, q=2)
-sarima.for(diff2, n.ahead = 30, p=2, d=0, q=2)
+```{r Fig7, echo=F, message=FALSE, results='hide'}
+fit = Arima(diff2, order=c(2,0,2))
+df2 = cbind(diff2,fit$fitted)
+autoplot(df2)+
+  scale_color_manual(labels= c("actual","fitted"),values=c("black", "#437cb5"))+
+  labs(title = "Fitted vs Actual Values", caption = 'Figure 7: Fitted vs actual values using differenced series')+
+  ylab("Difference")+
+  theme(legend.position=c(0.94,0.9),
+        legend.title = element_blank(),
+        legend.margin = margin(t = 0, unit='cm'))+
+  guides(color = guide_legend(override.aes = list(size = 3) ) )
+
+
+############ end v2
 ```
 
 
+```{r include=F, eval=F, echo=F}
+# Predictions on actual data
+
+pred = rep(0,length(diff0))
+for (t in 1:length(fit$fitted)){
+  pred[t+365+7]= fit$fitted[t]+diff1[t]+diff0[t]
+}
+
+tsPred = ts(pred,start = decimal_date(as.Date("2014-09-14")), frequency = 365)
+actualPred = cbind(diff0,tsPred)
+autoplot(actualPred)+
+  scale_color_manual(values=c("black", "#437cb5"))
+
+```
 
 
-
-
-<!-- 6. Transform the data to stationarity using regression (follow Example 3.5 in the text
-as much as possible); Explain differencing, log-transform,.... if used.  -->
-
-<!-- 7. ACF and PACF Plots: Use correlogram and partial correlogram to formulate ARMA(p,
-q) models for the ”stationary” data. If in doubt, choose from AR models, these are
-simple to estimate, interpret and predict. -->
-
-<!-- 8. Fit and Forecast: Estimate the model parameters using simple-minded methods like
-the least squares, Yule-Walker estimates, etc. -->
-
-
-<!-- 9. Diagnostic: Check the residuals to see if they are white noise. -->
-
-<!-- 10. You may want to consult the first three chapters of the text for notation, terminologies
-and ideas. -->
-
-<!-- 11. Incorporate as much as feasible the comments/questions came up during the first two
-presentations. Use model building techniques from Chapter 5 -->
