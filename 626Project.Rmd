@@ -7,10 +7,11 @@ author:
 - \small \textbf{Jackson Smith}; Analysis; Statistics, M.S. (Distance);  [jackson.t.smith\@tamu.edu](mailto:jackson.t.smith@tamu.edu){.email}
 - \small \textbf{Samuel Burge}; Writing; Statistics, M.S. (Distance);  [samuelburge\@tamu.edu](mailto:samuelburge@tamu.edu){.email}
 - \small \textbf{Max Kutschinski}; Theory; Statistics, M.S. (Distance); [mwk556\@tamu.edu](mailto:mwk556@tamu.edu){.email}
+
+
+
 output:
-  pdf_document:
-    fig_width: 17
-    fig_height: 6
+  pdf_document
 fontsize: 11pt
 ---
 \vspace{-1.5cm}  
@@ -19,9 +20,9 @@ fontsize: 11pt
 ## Introduction and Motivation
 
 <!-- Introduce Your data: Explain the context and background story of your data -->
-The objective of this analysis is to forecast daily unique visitors to an academic website containing lecture notes and supplemental material related to statistics. Predicting website traffic allows IT departments to manage project throughput and prioritize maintenance and enhancements to website functionality and effectively allocate web server resources. Web traffic is also a key indicator of customer growth and expansion, as well as sustaining recurring customers and ingrained growth. The details provided by web traffic throughput reports contain many metrics, including page loads, returning visitors, and unique visits, each of which conveys a different picture and set of information for an organization. As well, having a picture of expected throughput and confirming (or denying) expectations with reality allows a business to understand unexpected growth and/or unexpected decay in business development.
+The objective of this analysis is to forecast daily unique visitors to an academic website containing lecture notes and supplemental material related to statistics. Predicting website traffic allows IT departments to manage project throughput and prioritize maintenance and enhancements to website functionality and effectively allocate web server resources. Web traffic is also a key indicator of customer growth and expansion, as well as sustaining recurring customers and ingrained growth. The details provided by web traffic throughput reports contain many metrics, including page loads, returning visitors, and unique visits, each of which convey a different picture and set of information for an organization. As well, having a picture of expected throughput and confirming (or denying) expectations with reality allows a business to understand unexpected growth and/or unexpected decay in business development.
 
-The data contains five years of daily time series data of user visits. There are four features in the data set, which include daily counts for the number of page loads, first-time visitors, returning visitors, and unique visitors.^[A visit is defined as a stream of hits on one or more pages on the site on a given day by the same user within a 6-hour window, identified by the IP address of the specific device. Returning visitors are identified through allowed cookies on a user's device, and the total number of returning and first-time visitors is, by definition, the number of unique visitors.] An initial plot of the data shows strong seasonality and volatility, but doesn't appear to have any discernible trend or cyclical behavior. An explanation for this could be due to the nature of the website. Students would likely be the largest share of users for a website of this nature, and the seasonality seems associated with the academic calendar typically seen at academic institutions.  
+The data contains five years of daily time series data of user visits. There are four features in the data set, which include daily counts for the number of page loads, first-time visitors, returning visitors, and unique visitors.^[A visit is defined as a stream of hits on one or more pages on the site on a given day by the same user within a 6 hour window, identified by the IP address of the specific device. Returning visitors are identified through allowed cookies on a user's device, and the total returning and first-time visitors is, by definition, the number of unique visitors.] An initial plot of the data shows strong seasonality and volatility, but doesn't appear to have any discernible trend or cyclical behavior. An explanation for this could be due to the nature of the website. Students would likely be the largest share of users for a website of this nature, and the seasonality seems associated with the academic calender typically seen at academic institutions.  
 \  
 
 <!-- Plot the data and summarize your preliminary findings: trend, cycle, volatility, etc. -->
@@ -34,10 +35,9 @@ library(gridExtra)
 library(lubridate)
 library(ggfortify) # imports autoplot() function for plotting acf plots more easily
 library(tidyverse)
-library(forecast) 
-library(Hmisc) # Lowess smoothing
-library(tseries) #arma
-library(showtext) # package to use the Latex font in plots
+
+# package to use the Latex font in plots
+library(showtext)
 font_add(family = "cm", regular = "computermodern.ttf")
 showtext_auto()
 
@@ -52,11 +52,9 @@ webData = read_csv("WebTraffic.csv",
                                  "ReturningVisits"),
                    col_types = cols("Day" = "f",
                                     "Date" = col_date("%m/%d/%Y")))
-
-tsData = ts(webData, start = decimal_date(as.Date("2014-09-14")), frequency = 365) # time series object
 ```
 
-```{r include=F, echo=F, eval = F}
+```{r include=F, echo=F}
 colnames(webData)
 anyNA(webData)
 dim(webData)
@@ -65,165 +63,154 @@ summary(webData)
 ```  
 
 
-```{r Fig1, echo=F}
+```{r echo=F, fig.width = 17, fig.height = 6}
 
 # Set the theme for the chart
-theme_set(theme_bw() + theme(text = element_text(family = 'cm', size = 30)))
+theme_set(theme_bw() + theme(text = element_text(family = 'cm')))
 
 # Plot the daily count of unique page visits
 ggplot(webData, aes(Date, UniqueVisits)) +
+  
   geom_line(color = '#437cb5') +
+  
   scale_x_date(date_labels = "%Y", date_breaks = "1 year") +
-  labs(title = "Unique Page Visits Over Time", caption = "Figure 1") + 
-  ylab("Unique Visits")
-```
+  
+  labs(title = "Unique Page Visits Over Time") + 
+  
+  ylab("Unique Visits") +
+  
+  theme(text = element_text(size = 30)) 
 
-## Stationarity
-
-Stationarity is a common assumption underlying many time series procedures. As such, it is important to assess the level of stationarity prior to modeling and make the appropriate adjustments if necessary.
-
-A stationary time series is one whose properties do not depend on the time at which the series is observed. More specifically,
-
-(i) *the mean value function* $\mu_t=E(x_t)$ *is constant and does not depend on time t*
-
-(ii) *the autocovariance function* $\gamma(s,t)=cov(x_s,x_t)=E[(x_s-\mu_s)(x_t-\mu_t)]$ *depends on times s and t only though their lagged difference.* 
-
-
-The strong seasonality that is apparent in Figure 1 is indicative of non-stationarity, since seasonality will affect the value of the time series at different times. Seasonality is defined as a recurring pattern at a fixed and known frequency based on the time of the year, week, or day. 
-
-Figures 2 and 3 aim to identify the types of seasonality present in the data. Figure 2 plots a subset of the first several weeks and indicates that there exists weekly seasonality, whereas Figure 3 uses locally weighted scatterplot smoothers (Lowess) to emphasize the inherent yearly seasonality.  
-\newline
-
-```{r Fig2, echo= F, message=F}
 # Plot the daily count of unique page visits
-
 ggplot(webData[1:90, ], aes(Date, UniqueVisits)) +
+  
   geom_line(color = '#437cb5') +
+  
   geom_point(color = '#437cb5') +
+  
   scale_x_date(date_breaks = "1 week",
                date_minor_breaks = "1 day",
                date_labels = '%W') +
-  labs(title = "Weekly Seasonality", caption = 'Figure 2: Sample of weekly page visits') + 
+  
+  labs(title = "Weekly Page Visits", caption = 'Sample of the first several weeks in the time series to observe the weekly behavior in the data.') + 
+  
   ylab("Unique Visits") +
-  xlab("Date")+
-  theme(axis.text.x = element_text(size = 20, angle = 90),
+  
+  theme(text = element_text(size = 30),
+        plot.caption = element_text(size = 15), 
+        axis.text.x = element_text(size = 12, angle = 90),
         panel.grid.major.x = element_line(color = 'darkgrey'),
-        panel.grid.minor.x = element_line(color = 'lightgrey', linetype = 'dashed'))
+        panel.grid.minor.x = element_line(color = 'lightgrey', linetype = 'dashed')) 
+
 ```
 
+```{r echo = F, fig.width = 17, fig.height = 10}
+# Plot the daily count of unique page visits
+PageLoads_plot = ggplot(webData,aes(Date, PageLoads)) +
+  
+  geom_line(color = '#edf8b1') +
+  
+  scale_x_date(date_labels = "%Y", date_breaks = "1 year") +
+  
+  labs(x= '', y = '', title = "Page Loads") +
+  
+  theme(text = element_text(size = 30, family = 'cm'),
+        plot.title = element_text(size = 25, hjust = 0.5))
 
+# Plot the daily count of unique page visits
+UniqueVisits_plot = ggplot(webData,aes(Date, UniqueVisits)) +
+  
+  geom_line(color = '#7fcdbb') +
+  
+  scale_x_date(date_labels = "%Y", date_breaks = "1 year") +
+  
+  labs(x= '', y = '', title = "First Time Visits") +
+  
+  theme(text = element_text(size = 30, family = 'cm'),
+        plot.title = element_text(size = 25, hjust = 0.5))
 
-```{r Fig3, echo= F, message=F}
-autoplot(tsData[,"UniqueVisits"], color = '#437cb5')+
-  scale_x_continuous(breaks = seq(from = 2014, to =  2021, by = 1))+
-  stat_plsmo(color="black", span= 0.05)+  
-  labs(title = "Yearly Seasonality", caption = "Figure 3: Smoothing via Lowess") + 
-  ylab("Unique Visits")+
-  xlab("Date")
+# Plot the daily count of first time visits
+FirstTimeVisits_plot = ggplot(webData,aes(Date, FirstTimeVisits)) +
+  
+  geom_line(color = '#c7e9b4') +
+  
+  scale_x_date(date_labels = "%Y", date_breaks = "1 year") +
+  
+  labs(x= 'Date', y = '', title ="Returning Visits") +
+  
+  theme(text = element_text(size = 30, family = 'cm'),
+        plot.title = element_text(size = 25, hjust = 0.5))
+
+grid.arrange(PageLoads_plot, UniqueVisits_plot, FirstTimeVisits_plot, nrow = 3)
 ```
-
-\newpage
-
-
-A popular approach in addressing non-stationarity due to seasonalities is to eliminate these effects via seasonal differencing. The seasonal difference of a time series is the series of changes from one season to the next, which is defined as follows:
-
-\begin{equation}
-  \triangledown x_t=x_t-x_{t-m}
-\end{equation}
-
-Hence, yearly and weekly seasonalities will be handled by computing the lag 365 and lag 7 seasonal difference, respectively.
-
-\begin{equation}
-  \triangledown x_t^*=(x_t-x_{t-365})-x_{t-7}
-\end{equation}
-
-```{r Fig4, echo=F, message=F}
-# seasonal differences
-diff0 = tsData[,"UniqueVisits"]
-diff1 = diff(tsData[,"UniqueVisits"],lag=365) # eliminate yearly seasonality
-diff2=  diff(diff1,lag=7) # eliminate weekly seasonality
-
-# Time plots
-autoplot(diff0)+
-  geom_line(color = '#437cb5') +
-  labs(title = "Time plots of differenced series", subtitle = "No difference")
-autoplot(diff1)+
-  geom_line(color = '#437cb5')+
-  labs(subtitle = "Lag 365 difference")
-autoplot(diff2)+
-  geom_line(color = '#437cb5') +
-  labs(subtitle = "Lag 7 difference of previous difference", caption = 'Figure 4: Time plots of differenced series')
-```
-
-```{r Fig5, echo=F, message=F}
-# ACF and PACF plots
-ggAcf(diff2)+
-  geom_line(color = '#437cb5')+
-  labs(title = "ACF and PACF after differencing")
-ggPacf(diff2)+
-  geom_line(color = '#437cb5')+
-  labs(title="", caption = 'Figure 5: ACF and PACF')
-```
-
-<!--
-Problems with this approach:
-- high number of lags is generally not well received by models
-- moving holdiday effects (date changes per year)
-- leap years
--->
-
-## Modeling
-
-Both ACF and PACF show a slow decay indicating that a ARMA(2,2) model could be appropriate for the series. A auto regressive moving average of order p and q (ARMA(p,q)) model is defined in Eq(3).
-
-\begin{equation}
-   x_t = \alpha + \phi_1x_{t-1}+\cdot\cdot\cdot+\phi_px_{t-p}+w_t+\theta_1\omega_{t-1}+\cdot\cdot\cdot+\theta_p\omega_{t-q}\\
-\end{equation}
-\begin{center}where $\phi_p\neq0, \theta_p\neq0,\sigma_w^2>0$, and the model is causal and invertible.\end{center}
-
-```{r arma, echo=F}
-#fit model
-arma22 = arma(diff2, order=c(2,2), include.intercept = FALSE)
-```
-
-The parameters of the ARMA(2,2) model are estimated via conditional least squares which are displayed in Eq(4).
-
-\begin{equation}
-  \hat{x}_t = 0.44x_{t-1}+0.13x_{t-2}+w_t+0.05\omega_{t-1}-0.09\omega_{t-2}
-\end{equation}
-
-The residual plot in Figure 6 looks like white noise. 
-
-```{r Fig6, echo=FALSE, warning=F}
-res = residuals(arma22)
-autoplot(res)+
-  geom_line(color = '#437cb5') +
-  labs(title = "Residual plot", caption = 'Figure 6: Residuals of ARMA(2,2) model')
-```
-
-Polynomial roots are calculated to ensure that there are no redundant parameters in the model. There is no sign of redundancy.
-```{r roots, echo = F}
-# checking for roots
-AR = c(1, -arma22$coef[[1]], -arma22$coef[[2]])
-MA = c(1, arma22$coef[[3]], arma22$coef[[4]])
-polyroot(AR)
-polyroot(MA)
-```
-
-Other results:
-
-```{r echo=F, message=FALSE, results='hide'}
-sarima202 = sarima(diff2, p=2, d=0, q=2)
-sarima.for(diff2, n.ahead = 30, p=2, d=0, q=2)
-```
-
-
-
-
-
 
 <!-- 6. Transform the data to stationarity using regression (follow Example 3.5 in the text
 as much as possible); Explain differencing, log-transform,.... if used.  -->
+```{r echo=F, fig.width = 17, fig.height = 6, warning = F}
+
+# Extract date features and difference the time series
+webData <- webData %>%
+  mutate(t = time(webData$UniqueVisits), # time index
+         DayOfMonth = day(Date),
+         Year = as.factor(year(Date)),
+         Month = month(Date),
+         MonthCat = as.factor(Month),
+         
+         # Crude way of distinguishing school breaks; other way to do this?
+         SummerBreak = ifelse((Month >= 5 & Month <= 8), T, F),
+         WinterBreak = ifelse((Month == 12 & DayOfMonth > 15), T,
+                              ifelse((Month == 1 & DayOfMonth < 15),T,F)),
+         Is2017 = ifelse(Year == 2017, T, F),
+         
+         # Page loads divided by unique visits to get daily average per capita
+         LoadsPerCapita = PageLoads / UniqueVisits,
+         
+         # Convert the day of week to factor to use in lm() functions
+         DayOfWeek = as.factor(DayOfWeek),
+         
+         # Calculate various lags (daily, weekly, annual)
+         DailyDiff = UniqueVisits - lag(UniqueVisits, 1),
+         WeeklyDiff = UniqueVisits - lag(UniqueVisits, 7),
+         AnnualDiff = UniqueVisits - lag(UniqueVisits, 365))
+
+# Fit model using dummy variables for the day of week (strong seasonality)
+fit <- lm(UniqueVisits ~ DayOfWeek + MonthCat + SummerBreak + WinterBreak, data = webData)
+summary(fit)
+par(family = 'cm', mfrow = c(2,2))
+plot(fit)
+
+y = webData$UniqueVisits - predict(fit, newdata = webData[, c('DayOfWeek', 'MonthCat', 'SummerBreak', 'WinterBreak')])
+webData$y = y
+
+# Plot the daily count of the differenced unique page visits
+ggplot(webData, aes(x = Date, y)) +
+  
+  geom_line(color = '#437cb4') +
+  
+  scale_x_date(date_labels = "%Y", date_breaks = "1 year") +
+  
+  labs(title = "Weekly Differenced Unique Page Visits") + 
+  
+  ylab("Unique Visits") +
+  
+  theme(text = element_text(size = 20))
+
+# Compute the sample ACF function for the differenced series
+lags = 100
+acf_values = acf(webData$y, lag.max = lags, plot = F) # remove first value for diffs
+sample_acf = data.frame(lag = acf_values$lag,
+                        acf = acf_values$acf)
+
+# Plot the sample ACF function for the differenced series
+autoplot(acf(webData$y, lag.max = lags, plot = F)) +
+  geom_point(data = sample_acf, mapping = aes(x = lag, y = acf), size = 0.5) +
+  scale_x_continuous(breaks = c(0, 7, 14, 21, 28)) +
+  scale_y_continuous(limits = c(-1, 1)) +
+  theme_minimal() +
+  theme(text = element_text(family = 'cm')) +
+  labs(caption = 'Figure 3: Sample autocorrelation function (ACF) of differenced time series with 30 lags, showing the weekly seasonality (and associated autocorrelation) for weekly time periods.')
+
+```
 
 <!-- 7. ACF and PACF Plots: Use correlogram and partial correlogram to formulate ARMA(p,
 q) models for the ”stationary” data. If in doubt, choose from AR models, these are
@@ -231,7 +218,6 @@ simple to estimate, interpret and predict. -->
 
 <!-- 8. Fit and Forecast: Estimate the model parameters using simple-minded methods like
 the least squares, Yule-Walker estimates, etc. -->
-
 
 <!-- 9. Diagnostic: Check the residuals to see if they are white noise. -->
 
