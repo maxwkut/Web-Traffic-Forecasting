@@ -1,0 +1,381 @@
+---
+title: \vspace{-2.0cm} \textbf{Web Traffic Forecasting}
+subtitle: Time Series Analysis
+author:
+- \small \textbf{Shree Karimkolikuzhiyil}; Programming; Statistics, M.S. (Distance); [shreejesh\@tamu.edu](mailto:shreejesh@tamu.edu){.email}
+- \small \textbf{Jingcheng Xia}; Computations; Computer Science, B.S. (On-Campus); [sixtyfour64\@tamu.edu](mailto:sixtyfour64@tamu.edu){.email}
+- \small \textbf{Jackson Smith}; Analysis; Statistics, M.S. (Distance);  [jackson.t.smith\@tamu.edu](mailto:jackson.t.smith@tamu.edu){.email}
+- \small \textbf{Samuel Burge}; Writing; Statistics, M.S. (Distance);  [samuelburge\@tamu.edu](mailto:samuelburge@tamu.edu){.email}
+- \small \textbf{Max Kutschinski}; Theory; Statistics, M.S. (Distance); [mwk556\@tamu.edu](mailto:mwk556@tamu.edu){.email}
+output:
+  pdf_document:
+    fig_width: 17
+    fig_height: 6
+fontsize: 11pt
+---
+\vspace{-1.5cm}  
+
+---
+## Introduction and Motivation
+
+<!-- Introduce Your data: Explain the context and background story of your data -->
+The objective of this analysis is to forecast daily unique visitors to an academic website containing lecture notes and supplemental material related to statistics. Predicting website traffic allows IT departments to manage project throughput and prioritize maintenance and enhancements to website functionality and effectively allocate web server resources. Web traffic is also a key indicator of customer growth and expansion, as well as sustaining recurring customers and ingrained growth. The details provided by web traffic throughput reports contain many metrics, including page loads, returning visitors, and unique visits, each of which conveys a different picture and set of information for an organization. As well, having a picture of expected throughput and confirming (or denying) expectations with reality allows a business to understand unexpected growth and/or unexpected decay in business development.
+
+The data contains five years of daily time series data of user visits. There are four features in the data set, which include daily counts for the number of page loads, first-time visitors, returning visitors, and unique visitors.^[A visit is defined as a stream of hits on one or more pages on the site on a given day by the same user within a 6-hour window, identified by the IP address of the specific device. Returning visitors are identified through allowed cookies on a user's device, and the total number of returning and first-time visitors is, by definition, the number of unique visitors.] An initial plot of the data shows strong seasonality and volatility, but doesn't appear to have any discernible trend or cyclical behavior. An explanation for this could be due to the nature of the website. Students would likely be the largest share of users for a website of this nature, and the seasonality seems associated with the academic calendar typically seen at academic institutions.  
+\  
+
+<!-- Plot the data and summarize your preliminary findings: trend, cycle, volatility, etc. -->
+```{r include=F, echo=F}
+# load necessary packages
+library(readr)
+library(astsa)
+library(ggplot2)
+library(gridExtra)
+library(lubridate)
+library(ggfortify) # imports autoplot() function for plotting ACF plots more easily
+library(tidyverse)
+library(forecast)
+library(fable)   # New version of the forecast package
+library(tsibble) # Temporal tbl objects for use in the tidyverse
+library(feasts)  # Necessary for the fable package
+library(fable.prophet) # package to use prophet models with fable workflow
+library(Hmisc)   # Lowess smoothing
+library(tseries) # ARMA
+library(knitr)   # Table
+library(showtext) # package to use the Latex font in plots
+font_add(family = "cm", regular = "computermodern.ttf")
+showtext_auto()
+
+webData = read_csv("WebTraffic.csv",
+                   skip = 1,
+                   col_names = c("Day",
+                                 "DayOfWeek",
+                                 "Date",
+                                 "PageLoads",
+                                 "UniqueVisits",
+                                 "FirstTimeVisits",
+                                 "ReturningVisits"),
+                   col_types = cols("Day" = "f",
+                                    "Date" = col_date("%m/%d/%Y")))
+
+tsData = ts(webData, start = decimal_date(as.Date("2014-09-14")), frequency = 365) # time series object
+
+# Split the data into a training and test set
+train = webData %>%
+  select(Date, UniqueVisits) %>%
+  as_tsibble(index = Date) %>%
+  filter(Date < '2019-09-14')
+
+test = webData %>%
+  select(Date, UniqueVisits) %>%
+  as_tsibble(index = Date) %>%
+  filter(Date >= '2019-09-14')
+
+
+```
+
+```{r include=F, echo=F, eval = F}
+colnames(webData)
+anyNA(webData)
+dim(webData)
+str(webData)
+summary(webData)
+```  
+
+
+```{r Fig1, echo=F}
+
+# Set the theme for the chart
+theme_set(theme_bw() + theme(text = element_text(family = 'cm', size = 30)))
+
+# Plot the daily count of unique page visits
+ggplot(webData, aes(Date, UniqueVisits)) +
+  geom_line(color = '#437cb5') +
+  scale_x_date(date_labels = "%Y", date_breaks = "1 year") +
+  labs(title = "Unique Page Visits Over Time", caption = "Figure 1") + 
+  ylab("Unique Visits")
+```
+
+## Stationarity
+
+Stationarity is a common assumption underlying many time series procedures. As such, it is important to assess the level of stationarity prior to modeling and make the appropriate adjustments if necessary.
+
+A stationary time series is one whose properties do not depend on the time at which the series is observed. More specifically,
+
+(i) *the mean value function* $\mu_t=E(x_t)$ *is constant and does not depend on time t*
+
+(ii) *the autocovariance function* $\gamma(s,t)=cov(x_s,x_t)=E[(x_s-\mu_s)(x_t-\mu_t)]$ *depends on times s and t only though their lagged difference.* 
+
+
+The strong seasonality that is apparent in Figure 1 is indicative of non-stationarity, since seasonality will affect the value of the time series at different times. Seasonality is defined as a recurring pattern at a fixed and known frequency based on the time of the year, week, or day. 
+
+Figures 2 and 3 aim to identify the types of seasonality present in the data. Figure 2 plots a subset of the first several weeks and indicates that there exists weekly seasonality, whereas Figure 3 uses locally weighted scatterplot smoothers (Lowess) to emphasize the inherent yearly seasonality.  
+\newline
+
+```{r Fig2, echo= F, message=F}
+# Plot the daily count of unique page visits
+ggplot(webData[1:90, ], aes(Date, UniqueVisits)) +
+  geom_line(color = '#437cb5') +
+  geom_point(color = '#437cb5') +
+  scale_x_date(date_breaks = "1 week",
+               date_minor_breaks = "1 day",
+               date_labels = '%W') +
+  labs(title = "Weekly Seasonality", caption = 'Figure 2: Sample of weekly page visits') + 
+  ylab("Unique Visits") +
+  xlab("Date")+
+  theme(axis.text.x = element_text(size = 20, angle = 90),
+        panel.grid.major.x = element_line(color = 'darkgrey'),
+        panel.grid.minor.x = element_line(color = 'lightgrey', linetype = 'dashed'))
+```
+
+
+
+```{r Fig3, echo= F, message=F}
+autoplot(tsData[,"UniqueVisits"], color = '#437cb5')+
+  scale_x_continuous(breaks = seq(from = 2014, to =  2021, by = 1))+
+  stat_plsmo(color="black", span= 0.05)+  
+  labs(title = "Yearly Seasonality", caption = "Figure 3: Smoothing via Lowess") + 
+  ylab("Unique Visits")+
+  xlab("Date")
+```
+
+\newpage
+
+
+A popular approach in addressing non-stationarity due to seasonality is to eliminate these effects via seasonal differencing. The seasonal difference of a time series is the series of changes from one season to the next, which is defined as follows:
+
+\begin{equation}
+  \triangledown x_t=x_t-x_{t-m}
+\end{equation}
+
+Hence, yearly and weekly seasonality will be handled by computing the lag 365 and lag 7 seasonal difference, respectively.
+
+\begin{equation}
+  \triangledown x_t^*=(x_t-x_{t-365})-x_{t-7}
+\end{equation}
+
+Time plots of our series at different levels of differencing are displayed in Figure 4. The differenced series appears to be stationary with constant mean and variance.
+\newline
+
+```{r Fig4, echo=F, message=F, fig.height=5}
+# Differencing to induce stationarity
+train = webData %>%
+  select(Date, UniqueVisits) %>%
+  mutate(annual_diff = UniqueVisits - lag(UniqueVisits, n = 365),   # Separate the values for back-transforms?
+         weekly_diff = UniqueVisits - lag(UniqueVisits, n = 7),     # Separate the values for back-transforms?
+         diff = annual_diff - lag(annual_diff, n = 7)) %>%          # Eliminate annual and weekly seasonality
+  filter(!is.na(diff), Date < '2019-09-14') %>%
+  as_tsibble(index = Date)
+
+test = webData %>%
+  select(Date, UniqueVisits) %>%
+  mutate(annual_diff = UniqueVisits - lag(UniqueVisits, n = 365),   # Separate the values for back-transforms?
+         weekly_diff = UniqueVisits - lag(UniqueVisits, n = 7),     # Separate the values for back-transforms?
+         diff = annual_diff - lag(annual_diff, n = 7)) %>%          # Eliminate annual and weekly seasonality
+  filter(!is.na(diff), Date >= '2019-09-14') %>%
+  as_tsibble(index = Date)
+
+# See the relative size of each set in comparison to total available data
+#nrow(train) / nrow(webData) # About 85% of the available data
+#nrow(test) / nrow(webData)  # About 15% of the available data
+
+# Time plots
+ggplot(train, aes(Date, UniqueVisits)) +
+  geom_line(color = '#437cb5') +
+  labs(title = "Time Plots of Differenced Series", subtitle = "No Difference") +
+  theme(plot.title = element_text(hjust=0.5)) +
+  ylab("Unique Visits")
+
+ggplot(train, aes(Date, annual_diff)) +
+  geom_line(color = '#437cb5') +
+  labs(subtitle = "Lag 365 Difference")
+
+ggplot(train, aes(Date, diff)) +
+  geom_line(color = '#437cb5') +
+  labs(subtitle = "Lag 7 Difference of Previous Difference", caption = 'Figure 4: Time plots of differenced series')
+```
+\newpage
+
+The ACF and PACF of the differenced series $\triangledown x_t^*$ are displayed in Figure 5. Neither the ACF nor the PACF seems to cut off after a certain lag, which would be indicative of an AR or MA process. Rather, both of them appear to tail off over time. 
+\newline
+
+```{r Fig5, echo=F, message=F, fig.height=5}
+# ACF and PACF plots
+ggAcf(train$diff, color='#437cb5', lag.max = 365) +
+  labs(title = "ACF and PACF After Differencing") +
+  theme(plot.title = element_text(hjust=0.5))
+
+ggPacf(train$diff, color='#437cb5', lag.max = 365) +
+  labs(title="", caption = 'Figure 5: ACF and PACF')
+```
+
+<!--
+Problems with this approach:
+- high number of lags is generally not well received by models
+- moving holdiday effects (date changes per year)
+- leap years
+-->
+
+## Modeling
+
+Both ACF and PACF show a slow decay indicating that an ARMA(2,2) model could be appropriate for the series. An auto regressive moving average of order p and q (ARMA(p,q)) model is defined in Eq(3):
+
+\begin{equation}
+   x_t = \alpha + \phi_1x_{t-1}+\cdot\cdot\cdot+\phi_px_{t-p}+w_t+\theta_1\omega_{t-1}+\cdot\cdot\cdot+\theta_p\omega_{t-q}\\
+\end{equation}
+\begin{center}where $\phi_p\neq0, \theta_p\neq0,\sigma_w^2>0$, and the model is causal and invertible.\end{center}
+
+```{r arma, echo=F}
+# Fit various models to the training set
+models = train %>%
+  model(arma = ARIMA(diff ~ 0 + pdq(2, 0, 2) + PDQ(0, 0, 0)),     # Fit based on our assessment of the ACF/PACF plots
+        auto_arima = ARIMA(diff, stepwise = F))                    # Automatic fit of the differenced data
+
+# Retrieves the parameter estimates and hypothesis tests (p-values) for the models
+models %>%
+  select(auto_arima) %>%
+  report()
+
+# Models fit on the original time series
+fit = train %>%
+  model(arima = ARIMA(UniqueVisits),
+        prophet = prophet(UniqueVisits))
+
+# Get the point and interval estimates for the forecast(s)
+preds %>%
+  hilo() %>%
+  unpack_hilo(c(`80%`,`95%`)) %>%
+  select(lower95 = `95%_lower`,
+         lower80 = `80%_lower`,
+         prediction = .mean,
+         upper80 = `80%_upper`,
+         upper95 = `95%_upper`)
+
+train %>% autoplot(UniqueVisits) +
+  autolayer(preds)
+  
+```
+
+The parameters of the ARMA(2,2) model are estimated via conditional least squares and are displayed in Eq(4).
+
+\begin{equation}
+  \hat{x}_t = 0.44x_{t-1}+0.13x_{t-2}+w_t+0.05\omega_{t-1}-0.09\omega_{t-2}
+\end{equation}
+\newpage
+Figure 6 displays of plot of the residuals of the fitted ARMA(2,2) model. The residuals seem to behave like white noise, being centered around 0 with constant mean and variance. 
+\newline
+
+```{r Fig6, echo=FALSE, warning=F}
+models %>%
+  select(auto_arima) %>%
+  residuals(type = 'innovation') %>%
+  ggplot(aes(x = Date, y = .resid)) +
+  geom_line() +
+  geom_point()
+
+models %>%
+  select(arma) %>%
+  gg_tsresiduals()
+
+models %>%
+  select(arma) %>%
+  augment() %>%
+  features(.resid, ljung_box)
+```
+
+
+Table 1 contains the roots of the model's polynomials. Since they appear to be different from each other by a reasonable margin, we can conclude that there is no parameter redundancy in the model.
+
+```{r roots, echo = F}
+# checking for roots
+models %>%
+  select(arma) %>%
+  gg_arma()
+
+models %>%
+  select(auto_arima) %>%
+  gg_arma()
+
+roots = models %>%
+  report() %>%
+  select(ar_roots, ma_roots)
+
+kable(roots, col.names = c("AR","MA"), align = c("c","c"), caption = "Roots of polynomials")
+```
+
+The fitted values of the ARIMA(2,2) model are plotted against the actual values of the differenced series $\triangledown x_t^*$ in Figure 7. 
+\newline
+
+```{r Fig7, echo=F, message=FALSE, results='hide', warning=FALSE}
+# See the detailed summary for the model specifications
+arima_mdl_details = models %>%
+  report() %>%
+  filter(.model == 'auto_arima')
+
+# Plot the fitted versus actual values
+fit_data = models %>%
+  augment() %>%
+  filter(.model == 'auto_arima') %>%
+  select(Date, actual = diff, fit = .fitted)
+  
+ggplot(fit_data, aes(x = Date)) +
+  
+  geom_line(aes(y = fit), color = 'grey', linetype = 'dashed') +
+
+  geom_point(aes(y = actual), alpha = 0.5, color = 'darkred', size = 0.5)
+
+# Back-transformation the data to the original scale
+dta = tsibble(train,
+              fit = fit_data$fit,
+              index = Date) 
+
+dta = dta %>%
+  mutate(back_fit = fit + (UniqueVisits-weekly_diff) + (UniqueVisits-annual_diff) - (UniqueVisits-diff))
+
+ggplot(dta, aes(x = Date)) +
+  
+  geom_line(aes(y = back_fit), color = 'grey', linetype = 'dashed', size = 0.5) +
+
+  geom_line(aes(y = UniqueVisits), alpha = 0.5, color = 'darkred', size = 0.5)
+
+############ end v2
+```
+
+
+```{r include=F, eval=F, echo=F}
+# Plot the predictions for the transformed series
+arima_forecasts = models %>%
+  forecast(h = '341 days')
+
+other_model = train %>%
+  model(proph = prophet(UniqueVisits),
+        tbats = fable::)
+
+prophet_forecast = prophet_model %>%
+  forecast(h = '341 days')
+
+# Shows various measures of accuracy in the point estimates for the forecast
+accuracy(arima_forecasts, test)
+accuracy(prophet_forecast, test) # Not an apples to apples comparison since they are on different scales
+
+# Get the point and interval estimates for the forecast(s)
+arima_data = arima_forecasts %>%
+  hilo() %>%
+  unpack_hilo(c(`80%`,`95%`)) %>%
+  select(lower95 = `95%_lower`,
+         lower80 = `80%_lower`,
+         prediction = .mean,
+         upper80 = `80%_upper`,
+         upper95 = `95%_upper`)
+
+arima_data = left_join(arima_data,
+                       test) %>%
+  # Back-transformations to get the ARIMA model results to the original scale
+  mutate(back_pred = prediction + (UniqueVisits-weekly_diff) + (UniqueVisits-annual_diff) - (UniqueVisits-diff),
+         back_lower96 = lower95 + (UniqueVisits-weekly_diff) + (UniqueVisits-annual_diff) - (UniqueVisits-diff),
+         back_upper96 = upper95 + (UniqueVisits-weekly_diff) + (UniqueVisits-annual_diff) - (UniqueVisits-diff))
+
+
+```
+
+
