@@ -11,17 +11,15 @@ output:
   pdf_document:
     fig_width: 17
     fig_height: 6
-    citation_package: natbib
 fontsize: 11pt
-bibliography: citations.bib
 ---
 \vspace{-1.5cm}  
 
 ---
-# Introduction and Motivation
+## Introduction and Motivation
 
 <!-- Introduce Your data: Explain the context and background story of your data -->
-The objective of this analysis is to forecast daily unique visitors to an academic website over a 30-day horizon. Predicting website traffic allows IT departments to manage project throughput and prioritize maintenance and enhancements to website functionality and effectively allocate web server resources. Web traffic is also a key indicator of customer growth and expansion, as well as sustaining recurring customers and ingrained growth. The details provided by web traffic throughput reports contain many metrics, including page loads, returning visitors, and unique visits, each of which conveys a different picture and set of information for an organization. As well, having a picture of expected throughput and confirming (or denying) expectations with reality allows a business to understand unexpected growth and/or unexpected decay in business development.
+The objective of this analysis is to forecast daily unique visitors to an academic website containing lecture notes and supplemental material related to statistics. Predicting website traffic allows IT departments to manage project throughput and prioritize maintenance and enhancements to website functionality and effectively allocate web server resources. Web traffic is also a key indicator of customer growth and expansion, as well as sustaining recurring customers and ingrained growth. The details provided by web traffic throughput reports contain many metrics, including page loads, returning visitors, and unique visits, each of which conveys a different picture and set of information for an organization. As well, having a picture of expected throughput and confirming (or denying) expectations with reality allows a business to understand unexpected growth and/or unexpected decay in business development.
 
 The data contains five years of daily time series data of user visits. There are four features in the data set, which include daily counts for the number of page loads, first-time visitors, returning visitors, and unique visitors.^[A visit is defined as a stream of hits on one or more pages on the site on a given day by the same user within a 6-hour window, identified by the IP address of the specific device. Returning visitors are identified through allowed cookies on a user's device, and the total number of returning and first-time visitors is, by definition, the number of unique visitors.] An initial plot of the data shows strong seasonality and volatility, but doesn't appear to have any discernible trend or cyclical behavior. An explanation for this could be due to the nature of the website. Students would likely be the largest share of users for a website of this nature, and the seasonality seems associated with the academic calendar typically seen at academic institutions.  
 \  
@@ -98,13 +96,11 @@ ggplot(webData, aes(Date, UniqueVisits)) +
   ylab("Unique Visits")
 ```
 
-# Modeling
-
-## SARIMA
+## Stationarity
 
 Stationarity is a common assumption underlying many time series procedures. As such, it is important to assess the level of stationarity prior to modeling and make the appropriate adjustments if necessary.
 
-@shumway describe a stationary time series as one whose properties do not depend on the time at which the series is observed. More specifically,
+A stationary time series is one whose properties do not depend on the time at which the series is observed. More specifically,
 
 (i) *the mean value function* $\mu_t=E(x_t)$ *is constant and does not depend on time t*
 
@@ -116,7 +112,7 @@ The strong seasonality that is apparent in Figure 1 is indicative of non-station
 Figures 2 and 3 aim to identify the types of seasonality present in the data. Figure 2 plots a subset of the first several weeks and indicates that there exists weekly seasonality, whereas Figure 3 uses locally weighted scatterplot smoothers (Lowess) to emphasize the inherent yearly seasonality.  
 \newline
 
-```{r Fig2, echo= F, message=F, fig.height =5}
+```{r Fig2, echo= F, message=F}
 # Plot the daily count of unique page visits
 ggplot(webData[1:90, ], aes(Date, UniqueVisits)) +
   geom_line(color = '#437cb5') +
@@ -134,7 +130,7 @@ ggplot(webData[1:90, ], aes(Date, UniqueVisits)) +
 
 
 
-```{r Fig3, echo= F, message=F, fig.height=5}
+```{r Fig3, echo= F, message=F}
 autoplot(tsData[,"UniqueVisits"], color = '#437cb5')+
   scale_x_continuous(breaks = seq(from = 2014, to =  2021, by = 1))+
   stat_plsmo(color="black", span= 0.05)+  
@@ -220,14 +216,16 @@ Problems with this approach:
 - leap years
 -->
 
-Both ACF and PACF show a slow decay indicating that an ARMA(2,2) model could be appropriate for the seasonally adjusted series. An auto regressive moving average of order p and q (ARMA(p,q)) model is defined in Eq(3):
+## Modeling
+
+Both ACF and PACF show a slow decay indicating that an ARMA(2,2) model could be appropriate for the series. An auto regressive moving average of order p and q (ARMA(p,q)) model is defined in Eq(3):
 
 \begin{equation}
    x_t = \alpha + \phi_1x_{t-1}+\cdot\cdot\cdot+\phi_px_{t-p}+w_t+\theta_1\omega_{t-1}+\cdot\cdot\cdot+\theta_p\omega_{t-q}\\
 \end{equation}
 \begin{center}where $\phi_p\neq0, \theta_p\neq0,\sigma_w^2>0$, and the model is causal and invertible.\end{center}
 
-```{r arma, echo=F, eval=F}
+```{r arma, echo=F}
 # Fit various models to the training set
 models = train %>%
   model(arma = ARIMA(diff ~ 0 + pdq(2, 0, 2) + PDQ(0, 0, 0)),     # Fit based on our assessment of the ACF/PACF plots
@@ -255,7 +253,7 @@ preds %>%
 
 train %>% autoplot(UniqueVisits) +
   autolayer(preds)
-
+  
 ```
 
 The parameters of the ARMA(2,2) model are estimated via conditional least squares and are displayed in Eq(4).
@@ -267,7 +265,7 @@ The parameters of the ARMA(2,2) model are estimated via conditional least square
 Figure 6 displays of plot of the residuals of the fitted ARMA(2,2) model. The residuals seem to behave like white noise, being centered around 0 with constant mean and variance. 
 \newline
 
-```{r Fig6, echo=FALSE, warning=F, eval=F}
+```{r Fig6, echo=FALSE, warning=F}
 models %>%
   select(auto_arima) %>%
   residuals(type = 'innovation') %>%
@@ -288,7 +286,7 @@ models %>%
 
 Table 1 contains the roots of the model's polynomials. Since they appear to be different from each other by a reasonable margin, we can conclude that there is no parameter redundancy in the model.
 
-```{r roots, echo = F, eval=F}
+```{r roots, echo = F}
 # checking for roots
 models %>%
   select(arma) %>%
@@ -305,10 +303,10 @@ roots = models %>%
 kable(roots, col.names = c("AR","MA"), align = c("c","c"), caption = "Roots of polynomials")
 ```
 
-The fitted values of the ARIMA(2,2) model are plotted against the actual values of the seasonally differenced series $\triangledown x_t^*$ in Figure 7. 
+The fitted values of the ARIMA(2,2) model are plotted against the actual values of the differenced series $\triangledown x_t^*$ in Figure 7. 
 \newline
 
-```{r Fig7, echo=F, message=FALSE, results='hide', warning=FALSE, eval=F}
+```{r Fig7, echo=F, message=FALSE, results='hide', warning=FALSE}
 # See the detailed summary for the model specifications
 arima_mdl_details = models %>%
   report() %>%
@@ -343,13 +341,8 @@ ggplot(dta, aes(x = Date)) +
 ############ end v2
 ```
 
-## Prophet
 
-@prophet
-
-@fableprophet
-
-```{r include=F, eval=F, echo=F, eval=F}
+```{r include=F, eval=F, echo=F}
 # Plot the predictions for the transformed series
 arima_forecasts = models %>%
   forecast(h = '341 days')
@@ -384,27 +377,5 @@ arima_data = left_join(arima_data,
 
 
 ```
-
-# Results
-
-All models are trained on a training set and evaluated on a test set. The test set consists of data from ##Startdate## to ##Enddate##, making up the last 365 observations of the dataset. Our primary evaluation metric for model comparison is the mean absolute error (MAE), which has the advantage of being measured on the same scale as the original dataset (number of website visits), and thus making results more interpretable.
-
-$$MAE=\frac{1}{n}\sum_{i=1}^{n}|y_i-\hat y_i|$$
-
-A common-sense baseline serves as a sanity check and is often used to establish a baseline of comparison for more advanced time series models. Given daily data with yearly seasonality, a common-sense baseline is to predict the number of unique visits at time t to be equal to the number of unique visits at t-365. In other words, a random walk model making constant prediction with yearly seasonality, which is known as a seasonal naive model (Eq. X)
-
-$$\hat x_t = x_{t-365}$$
-
-Insert Table with error metrics here  
-
-Insert Barchart with MAE values here
-
-Discuss results here
-
-# Conclusion
-
-\newpage
-
-# References
 
 
