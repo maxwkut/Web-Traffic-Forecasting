@@ -1,0 +1,29 @@
+---
+title: "Results"
+author: "Max Kutschinski"
+date: '2022-08-03'
+output:
+  pdf_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Results
+
+All models are trained on a training set and evaluated on a test set. The test set consists of data from ##Startdate## to ##Enddate##, making up the last 365 observations of the dataset. Our primary evaluation metric for model comparison is the mean absolute error (MAE), which has the advantage of being measured on the same scale as the original dataset (number of website visits), and thus making results more interpretable.
+
+$$MAE=\frac{1}{n}\sum_{i=1}^{n}|y_i-\hat y_i|$$
+
+A common-sense baseline serves as a sanity check and is often used to establish a baseline of comparison for more advanced time series models. Given daily data with yearly seasonality, a common-sense baseline is to predict the number of unique visits at time t to be equal to the number of unique visits at t-365. In other words, a random walk model making constant prediction with yearly seasonality, which is known as a seasonal naive model (Eq. X)
+
+$$\hat x_t = x_{t-365}$$
+
+Insert Table with error metrics here  
+
+Insert Barchart with MAE values here
+
+Discuss results here
+

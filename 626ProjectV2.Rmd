@@ -167,10 +167,12 @@ The ACF and PACF of the differenced series $\triangledown x_t^*$ are displayed i
 
 ```{r Fig5, echo=F, message=F, fig.height=5}
 # ACF and PACF plots
-ggAcf(diff2, color='#437cb5')+
+ggAcf(diff2, color='#437cb5', lag.max = 50)+
   labs(title = "ACF and PACF After Differencing")+
+  scale_x_continuous(breaks=seq(0,100,7))+
   theme(plot.title = element_text(hjust=0.5))
-ggPacf(diff2, color='#437cb5')+
+ggPacf(diff2, color='#437cb5', lag.max = 50)+
+  scale_x_continuous(breaks=seq(0,100,7))+
   labs(title="", caption = 'Figure 5: ACF and PACF')
 ```
 
@@ -192,7 +194,10 @@ Both ACF and PACF show a slow decay indicating that an ARMA(2,2) model could be 
 
 ```{r arma, echo=F}
 #fit model
-arma22 = arma(diff2, order=c(2,2), include.intercept = FALSE)
+#arma22 = arma(diff2, order=c(2,2), include.intercept = FALSE)
+#new
+sarima1 = sarima(diff2, 1,0,2,3,0,3,S=7)
+summary(sarima1)
 ```
 
 The parameters of the ARMA(2,2) model are estimated via conditional least squares and are displayed in Eq(4).
@@ -204,7 +209,7 @@ The parameters of the ARMA(2,2) model are estimated via conditional least square
 Figure 6 displays of plot of the residuals of the fitted ARMA(2,2) model. The residuals seem to behave like white noise, being centered around 0 with constant mean and variance. 
 \newline
 
-```{r Fig6, echo=FALSE, warning=F}
+```{r Fig6, echo=FALSE, warning=F, eval=F}
 res = residuals(arma22)
 autoplot(res)+
   geom_line(color = '#437cb5') +
@@ -215,7 +220,7 @@ autoplot(res)+
 
 Table 1 contains the roots of the model's polynomials. Since they appear to be different from each other by a reasonable margin, we can conclude that there is no parameter redundancy in the model.
 
-```{r roots, echo = F}
+```{r roots, echo = F, eval=F}
 # checking for roots
 AR = c(1, -arma22$coef[[1]], -arma22$coef[[2]])
 MA = c(1, arma22$coef[[3]], arma22$coef[[4]])
@@ -229,7 +234,7 @@ kable(roots, col.names = c("AR","MA"), align = c("c","c"), caption = "Roots of p
 The fitted values of the ARIMA(2,2) model are plotted against the actual values of the differenced series $\triangledown x_t^*$ in Figure 7. 
 \newline
 
-```{r Fig7, echo=F, message=FALSE, results='hide'}
+```{r Fig7, echo=F, message=FALSE, results='hide', eval=F}
 fit = Arima(diff2, order=c(2,0,2))
 df2 = cbind(diff2,fit$fitted)
 autoplot(df2)+
@@ -261,4 +266,62 @@ autoplot(actualPred)+
 
 ```
 
+```{r, eval=F}
 
+m=dshw(subset(tsData[,5],end=length(tsData[,5])-7),h=7)
+
+
+auto.arima(tsData[,5], seasonal=T)
+```
+
+
+When there are long seasonal periods, a dynamic regression with Fourier terms is often better than other models we have considered in this book.
+Seasonal versions of ARIMA and ETS models are designed for shorter periods such as 12 for monthly data or 4 for quarterly data.
+
+```{r, eval=F}
+fit <- auto.arima(cafe04, xreg = fourier(cafe04, K = i),
+    seasonal = FALSE, lambda = 0)
+  plots[[i]] <- autoplot(forecast(fit,
+      xreg=fourier(cafe04, K=i, h=24))) +
+    xlab(paste("K=",i,"   AICC=",round(fit[["aicc"]],2))) +
+    ylab("") + ylim(1.5,4.7)
+
+```
+
+
+```{r, eval=F}
+
+m=mstl(tsData[,5])
+plot(m)
+
+# train test split
+UniqueVisits = tsData[,5]
+training <- subset(UniqueVisits, end=length(UniqueVisits)-365)
+test <- subset(UniqueVisits, start=length(UniqueVisits)-364)
+
+# baseline
+
+web.train <- Arima(training, order=c(2,1,1),
+  seasonal=c(0,1,2), lambda=0)
+cafe.train %>%
+  forecast(h=60) %>%
+  autoplot() + autolayer(test)
+
+snaive(test,h=7)
+```
+
+
+```{r, eval = F}
+tsData[,5] %>%  stlf() %>%
+  autoplot() + xlab("Week")
+
+
+
+fit <- auto.arima(tsData[,5], seasonal=FALSE,
+         xreg=fourier(tsData[,5], K=c(3,3))
+fit %>%
+  forecast(xreg=fourier(tsData[,5], K=c(10,10))) %>%
+  autoplot() +
+    ylab("Call volume") + xlab("Weeks")
+
+```
