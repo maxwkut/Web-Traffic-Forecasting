@@ -97,9 +97,7 @@ Stationarity is a common assumption underlying many time series procedures. As s
 (ii) *the autocovariance function* $\gamma(s,t)=cov(x_s,x_t)=E[(x_s-\mu_s)(x_t-\mu_t)]$ *depends on times s and t only though their lagged difference.* 
 
 
-The strong seasonality that is apparent in Figure 1 is indicative of non-stationarity, since seasonality will affect the value of the time series at different times. Seasonality is defined as a recurring pattern at a fixed and known frequency based on the time of the year, week, or day. 
-
-Figures 2 and 3 aim to identify the types of seasonality present in the data. Figure 2 plots a subset of the first several weeks and indicates that there exists weekly seasonality, whereas Figure 3 uses locally weighted scatterplot smoothers (Lowess) to emphasize the inherent yearly seasonality.  
+The strong seasonality that is apparent in Figure 1 is indicative of non-stationarity, since seasonality will affect the value of the time series at different times. Seasonality is defined as a recurring pattern at a fixed and known frequency based on the time of the year, week, or day. Figures 2 and 3 aim to identify the type of seasonality present in the data. Figure 2 plots a subset of the first several weeks and indicates that there exists weekly seasonality, whereas Figure 3 uses locally weighted scatterplot smoothing (Lowess) to emphasize the inherent annual seasonal behavior.  
 \newline
 
 ```{r Fig2, echo= F, message=F, fig.height =5}
@@ -135,19 +133,19 @@ autoplot(tsData[,"UniqueVisits"], color = '#437cb5')+
 A popular approach in addressing non-stationarity due to seasonality is to eliminate these effects via seasonal differencing. The seasonal difference of a time series is the series of changes from one season to the next, which is defined as follows:
 
 \begin{equation}
-  \triangledown x_t=x_t-x_{t-m}
+  \triangledown_s x_t=x_t-x_{t-s}
 \end{equation}
 
-Hence, yearly and weekly seasonality will be handled by computing the lag 365 and lag 7 seasonal difference, respectively.
+One challenge with the unique visits, however, is the complex seasonality. Multiple seasonal patterns exist within the time series, and the family of SARIMA(p,d,q)(P,D,Q)[s] models only allow for a single seasonal difference. In an attempt to handle the complex seasonality, we performed a two-step seasonal differencing approach by taking the annual difference of the time series, then taking the weekly difference of the transformed time series from the previous step. This can be more clearly shown as
 
 \begin{equation}
-  \triangledown x_t^*=(x_t-x_{t-365})-x_{t-7}
+  x_t^* = \triangledown_7 \triangledown_{365} x_t = (1 - B^7)(1 - B^{365})x_t = (x_t - x_{t-7}) - (x_{t-365}-x_{t-372})
 \end{equation}
 
-Time plots of our series at different levels of differencing are displayed in Figure 4. The differenced series appears to be stationary with constant mean and variance.
+where B is the backshift operator. Time plots of the aforementioned transformation steps series at different stages are displayed in Figure 4. The differenced series appears to be stationary with a constant mean and variance.
 \newline
 
-```{r Fig4, echo=F, message=F, fig.height=5}
+```{r Fig4, echo=F, message=F, fig.height=4}
 # Differencing to induce stationarity
 web = webData %>%
   select(Date, UniqueVisits) %>%
@@ -192,21 +190,20 @@ test = webData %>%
 # Time plots
 ggplot(train, aes(Date, UniqueVisits)) +
   geom_line(color = '#437cb5') +
-  labs(title = "Time Plots of Differenced Series", subtitle = "No Difference") +
-  theme(plot.title = element_text(hjust=0.5)) +
-  ylab("Unique Visits")
+  labs(title = "Seasonal Differencing Stages", subtitle = "Original Time Series", x = '', y = '') +
+  theme(plot.title = element_text(hjust=0.5))
 
 ggplot(train, aes(Date, annual_diff)) +
   geom_line(color = '#437cb5') +
-  labs(subtitle = "Lag 365 Difference")
+  labs(subtitle = "Annual Differencing", x = '', y = '')
 
 ggplot(train, aes(Date, diff)) +
   geom_line(color = '#437cb5') +
-  labs(subtitle = "Lag 7 Difference of Previous Difference", caption = 'Figure 4: Time plots of differenced series')
+  labs(subtitle = "Weekly Differencing (Of Previous Difference)", caption = 'Figure 4: Time plots of differenced series', y = '')
 ```
 \newpage
 
-The ACF and PACF of the differenced series $\triangledown x_t^*$ are displayed in Figure 5. Neither the ACF nor the PACF seems to cut off after a certain lag, which would be indicative of an AR or MA process. Rather, both of them appear to tail off over time. 
+The ACF and PACF of the differenced series $x_t^*$ are displayed in Figure 5. Neither the ACF nor the PACF seems to cut off after a certain lag, which would be indicative of an AR or MA process. Rather, both of them appear to tail off over time, making it difficult to determine specific orders for the family of ARMA(p,q) models defined in Eq(3) as:
 \newline
 
 ```{r Fig5, echo=F, message=F, fig.height=5}
@@ -222,44 +219,70 @@ ggPacf(train$diff, color='#437cb5', lag.max = 365) +
 <!--
 Problems with this approach:
 - high number of lags is generally not well received by models
-- moving holdiday effects (date changes per year)
+- moving holiday effects (date changes per year)
 - leap years
 -->
-
-Both ACF and PACF show a slow decay making it difficult to determine specific orders for the family of ARMA(p,q) models defined in Eq(3) as:
 
 \begin{equation}
    x_t = \alpha + \phi_1x_{t-1}+\cdot\cdot\cdot+\phi_px_{t-p}+w_t+\theta_1\omega_{t-1}+\cdot\cdot\cdot+\theta_p\omega_{t-q}\\
 \end{equation}
 \begin{center}where $\phi_p\neq0, \theta_p\neq0,\sigma_w^2>0$, and the model is causal and invertible.\end{center}  
 
-We opted to fit a range of ARMA(p,q) models with small orders, with the final model selected based the accuracy of the model forecasts test or hold-out set since our primary goal for this analysis is forecasting (not necessarily inferences or hypothesis testing). The model selection criterion for the fitted ARMA models is shown in the table below. 
+We opted to fit a range of ARMA(p,q) models with small orders, with the final model selected based the forecasting accuracy of the models on a test or hold-out set since our primary goal for this analysis is forecasting. The model selection criterion for the fitted ARMA models is shown in the table below. 
 
 ```{r arma, echo=F}
 # Fit various models to the training set
 models = train %>%
   model('Seasonal Naive' = fable::SNAIVE(diff ~ lag(365)),              # Baseline for comparison (seasonal naive model)
         'ARMA(2,2)' = ARIMA(diff ~ 0 + pdq(2, 0, 2) + PDQ(0, 0, 0)),    # Fit based on our assessment of the ACF/PACF plots
-        'ARMA(1,1)' = ARIMA(diff ~ 0 + pdq(2,0,2)),
-        'ARMA(1,2)' = ARIMA(diff ~ 0 + pdq(1,0,2)),
-        'ARMA(2,1)' = ARIMA(diff ~ 0 + pdq(2,0,1)))
-  
+        'ARMA(1,1)' = ARIMA(diff ~ 0 + pdq(1, 0, 1) + PDQ(0, 0, 0)),
+        'ARMA(1,2)' = ARIMA(diff ~ 0 + pdq(1, 0, 2) + PDQ(0, 0, 0)),
+        'ARMA(2,1)' = ARIMA(diff ~ 0 + pdq(2, 0, 1) + PDQ(0, 0, 0)),
+        'ARMA(0,1)' = ARIMA(diff ~ 0 + pdq(0, 0, 1) + PDQ(0, 0, 0)),
+        'ARMA(1,0)' = ARIMA(diff ~ 0 + pdq(1, 0, 0) + PDQ(0, 0, 0)),
+        'SARMA(1,2)(2,2)[7]' = ARIMA(diff ~ 0 + pdq(1, 0, 2)))
+
+models %>%
+  select('SARMA(1,2)(0,0)[7]') %>%
+  report()
+
+models2 = train %>%
+  model('test' = ARIMA(annual_diff ~ 1 + pdq(1,0,2) + PDQ(0, 0, 1, period = 7)),
+        'test2' = ARIMA(annual_diff ~ 1 + pdq(1,0,2) + PDQ(0, 1, 2, period = 7)),
+        'test3' = ARIMA(annual_diff ~ 1 + pdq(1,0,2) + PDQ(1, 1, 2, period = 7)))
+
+models2 %>%
+  glance() %>%
+  mutate(sigma = sqrt(sigma2))
+
 # Retrieves the parameter estimates and hypothesis tests (p-values) for the models
 models %>%
   glance() %>%
-  select(-ar_roots, -ma_roots) %>%
   filter(.model != 'Seasonal Naive') %>%
+  mutate(std_err = sqrt(sigma2)) %>%
+  select(.model, std_err, log_lik, AIC, AICc, BIC, -ar_roots, -ma_roots, -sigma2) %>%
   arrange(AIC) %>%
-  kable(col.names = c('Model',expression(sigma^2),'Log-Likelihood','AIC','AICc','BIC'))
+  kable(col.names = c('Model', 'Innov. Std. Error','Log-Likelihood','AIC','AICc','BIC'),
+        digits = 2, align = c('l', 'c', 'c', 'c', 'c', 'c'))
 ```
 
 The parameters of the ARMA(1,2) model are estimated via conditional least squares and are displayed in Eq(4).
 
+```{r, include = F}
+models %>%
+  select('ARMA(1,2)') %>%
+  report()
+
+models %>%
+  select('SARMA(1,2)(0,0)[7]') %>%
+  report()
+```
+
 \begin{equation}
-  \hat{x}_t = 0.44x_{t-1}+0.13x_{t-2}+w_t+0.05\omega_{t-1}-0.09\omega_{t-2}
+  \hat{x}_t = 0.7164_{(0.0414)}x_{t-1}+ \omega_t - 0.1953_{(0.0489)}\omega_{t-1} - 0.089_{(0.0325)}\omega_{t-2}
 \end{equation}  
 
-Figure 6 displays of plot of the residuals of the fitted ARMA(1,2) model. Initially, the residuals seem to behave like white noise, being centered around zero with a constant variance. However, further analysis of autocorrelation plot and formal testing using the Box-Ljung test indicate that the innovations are not uncorrelated (i.e., they are not white noise). The autocorrelation in the innovations does appear small for most lags, given how similar the various models are this is likely the best fit we can obtain from the ARMA(p,q) modelling procedure.
+Figure 6 displays of plot of the residuals of the fitted ARMA(1,2) model. Initially, the residuals seem to behave like white noise, being centered around zero with a constant variance. However, further analysis of autocorrelation plot and formal testing using the Box-Ljung test indicate that the innovations are correlated (i.e., they are not white noise). The autocorrelation in the innovations does appear small for most lags, given how similar the various models are this is likely the best fit we can obtain from the ARMA(p,q) modelling procedure.
 \newline
 
 ```{r Fig6, echo=FALSE, warning=F}
@@ -301,14 +324,21 @@ roots = models %>%
   glance() %>%
   select(ar_roots, ma_roots)
 
-models %>%
-  select('ARMA(1,2)') %>%
-  gg_arma()
+ar_roots = round(unnest(roots[,1], cols = 'ar_roots'),2)
+ma_roots = round(unnest(roots[,2], cols = 'ma_roots'),2)
 
-kable(roots, col.names = c("AR","MA"), align = c("c","c"), caption = "Roots of polynomials", digits = 2)
+roots = unnest(roots, cols = c(ar_roots, ma_roots))
+
+for (i in 2:nrow(roots)) {
+  roots$ar_roots[i] = NA
+}
+
+kable(roots,
+      col.names = c('AR Roots', 'MA Roots'),
+      align = c('c','c'), caption = 'Roots of polynomials', digits = 2)
 ```
 
-The fitted values of the ARMA(1,2) model are plotted against the actual values of the seasonally differenced series $\triangledown x_t^*$ (Figure 7) and the. 
+The fitted values of the ARMA(1,2) model are plotted against the actual values of the seasonally differenced series $x_t^*$ (Figure 7) and the. 
 \newline
 
 ```{r Fig7, echo=F, message=FALSE, results='hide', warning=FALSE}
@@ -322,16 +352,16 @@ fit_data = models %>%
   augment() %>%
   filter(.model == "ARMA(1,2)") %>%
   select(Date, actual = diff, fit = .fitted)
-  
-ggplot(fit_data, aes(x = Date)) +
-  
-  geom_line(aes(y = fit), color = 'black', alpha = 0.5, size = 0.5) +
 
-  geom_point(aes(y = actual), alpha = 0.5, color = 'darkred', size = 1) +
-  
-  labs(x = 'Date', y = expression(y[t]),
-       title = 'ARMA(1,2) Model',
-       caption = 'Fitted model shown by black line and the actual values of the training set are shown in red.')
+#ggplot(fit_data, aes(x = Date)) +
+#  
+#  geom_line(aes(y = fit), color = 'black', alpha = 0.5, size = 0.5) +
+#
+#  geom_point(aes(y = actual), alpha = 0.5, color = 'darkred', size = 1) +
+#  
+#  labs(x = 'Date', y = expression(y[t]),
+#       title = 'ARMA(1,2) Model',
+#       caption = 'Fitted model shown by black line and the actual values of the training set are shown in red.')
 
 # Back-transformation the data to the original scale
 dta = tsibble(train,
@@ -366,17 +396,7 @@ ggplot(dta, aes(x = Date)) +
 
 # Results  
 
-All the above models were trained on a training set, and the predictive accuracy was then evaluated on a test set. The training set consists of page visits starting from `r min(train$Date)` until `r max(train$Date)`, and test set contains the data from `r min(test$Date)` to `r max(test$Date)`, making up the last `r nrow(test)` observations of the data. Our primary evaluation metrics for model comparison are the root mean squared error (RMSE) and mean absolute error (MAE), which both have the advantage of being measured on the same scale as the data (i.e., the number of website visits). Using these are our primary accuracy measures gives us more interpretable results. For clarification, the RMSE and MAE are defined as  
-
-$$ RMSE = \sqrt{ \Bigg( \frac{1}{n}\sum_{i = 1}^{n} (y_i - \hat{y}_i)^2 \Bigg) }$$  
-
-$$MAE=\frac{1}{n}\sum_{i=1}^{n}|y_i-\hat y_i|$$
-
-In addition to these accuracy measures, a common-sense baseline serves as a sanity check, and is often used as a benchmark for more advanced time series models. Given daily data with yearly seasonality, a common-sense baseline is to predict the number of unique visits at time t to be equal to the number of unique visits at t-365. In other words, a random walk model making a constant prediction with yearly seasonality, which is known as a seasonal naive model (Eq. X)
-
-$$\hat x_t = x_{t-365}$$
-
-```{r, echo=F, message = F, warning = F, error = F}
+```{r forecast, echo=F, message = F, warning = F, error = F}
 # Plot the predictions for the transformed series
 arima_forecasts = models %>%
   forecast(h = '341 days')
@@ -427,23 +447,42 @@ arima_data = left_join(arima_data,
 #           MAE = mean(abs(forecast_error), na.rm = T),
 #           MPE = mean(percent_error, na.rm = T),
 #           MAPE = mean(abs(percent_error), na.rm = T))
-```  
+``` 
 
-```{r echo = F}
-# Plot the forecasts
-ggplot(data = arima_data %>% filter(.model == "Seasonal Naive"), aes(x = Date)) +
-  
-  geom_line(aes(y = back_pred), alpha = 0.5, linetype = 'dashed') +
-  
-  geom_point(aes(y = UniqueVisits), size = 1, color = 'darkred', alpha = 0.5) +
+All the above models were trained on a training set, and the predictive accuracy was then evaluated on a test set. The training set consists of page visits starting from `r min(train$Date)` until `r max(train$Date)`, and test set contains the data from `r min(test$Date)` to `r max(test$Date)`, making up the last `r nrow(test)` observations of the data. Our primary evaluation metrics for model comparison are the root mean squared error (RMSE) and mean absolute error (MAE), which both have the advantage of being measured on the same scale as the data (i.e., the number of website visits). Using these are our primary accuracy measures gives us more interpretable results. For clarification, the RMSE and MAE are defined as  
 
-  # Add in the training data to show the historical data
-  geom_line(data = train, mapping = aes(x = Date, y = UniqueVisits), size = 0.5) +
-  
-  coord_cartesian(xlim = c(as.Date('2019-07-14'), as.Date('2020-09-01'))) +
-  
-  labs(x = 'Date', y = 'Unique Visits', title = 'Seasonal Naive')
-```  
+$$ RMSE = \sqrt{ \Bigg( \frac{1}{n}\sum_{i = 1}^{n} (y_i - \hat{y}_i)^2 \Bigg) }$$  
+
+$$MAE=\frac{1}{n}\sum_{i=1}^{n}|y_i-\hat y_i|$$
+
+In addition to these accuracy measures, a common-sense baseline serves as a sanity check, and is often used as a benchmark for more advanced time series models. Given daily data with yearly seasonality, a common-sense baseline is to predict the number of unique visits at time t to be equal to the number of unique visits at t-365. In other words, a random walk model making a constant prediction with yearly seasonality, which is known as a seasonal naive model (Eq. X)
+
+$$\hat x_t = x_{t-365}$$
+
+The forecast accuracy for the ARMA(1,2) model shows the best performance on the test set, 
+ 
+
+
+```{r, echo = F}
+# Shows various measures of accuracy in the point estimates for the forecast
+accuracy(arima_forecasts, web) %>%
+  add_row(accuracy(prophet_forecast, web)) %>%
+  select(-.type, -ACF1) %>%
+  arrange(MAE) %>%
+  rename(Model = .model) %>%
+  kable(digits = 2, caption = 'Accuracy measures from the test set performance of fitted models.')
+```
+
+```{r mae_plot, echo = F, include = F}
+accuracy(arima_forecasts, web) %>%
+  add_row(accuracy(prophet_forecast, web)) %>%
+  select(.model, RMSE, MAE) %>%
+  rename(Model = .model) %>%
+  pivot_longer(c(MAE, RMSE), names_to = 'Metric', values_to = 'Value') %>%
+  ggplot(aes(x = Model, y = Value, fill = Metric)) +
+  geom_bar(position="dodge", stat="identity") +
+  labs(caption = 'Selected accuracy measures for the various fitted models.')
+```
 
 ```{r echo = F}
 # Plot the forecasts
@@ -461,38 +500,17 @@ ggplot(data = arima_data %>% filter(.model == "ARMA(1,2)"), aes(x = Date)) +
   labs(x = 'Date', y = 'Unique Visits', title = 'ARMA(1,2)')
 ```  
 
+\newpage  
+# Conclusion  
 
-```{r, echo = F}
-# Shows various measures of accuracy in the point estimates for the forecast
-accuracy(arima_forecasts, web) %>%
-  add_row(accuracy(prophet_forecast, web)) %>%
-  select(-.type, -ACF1) %>%
-  arrange(MAE) %>%
-  rename(Model = .model) %>%
-  kable(digits = 2, caption = 'Accuracy measures from the test set performance of fitted models.')
-```
+The d
 
-```{r mae_plot, echo = F}
-accuracy(arima_forecasts, web) %>%
-  add_row(accuracy(prophet_forecast, web)) %>%
-  select(.model, RMSE, MAE) %>%
-  rename(Model = .model) %>%
-  pivot_longer(c(MAE, RMSE), names_to = 'Metric', values_to = 'Value') %>%
-  ggplot(aes(x = Model, y = Value, fill = Metric)) +
-  geom_bar(position="dodge", stat="identity") +
-  labs(caption = 'Selected accuracy measures for the various fitted models.')
-```
-
-Discuss results here
-
-# Conclusion
- \newpage  
 ```{r final-forecast, echo = F, fig.height = 4.5}
-# Fit the final model with all the available data
+# Select and fit the final model with all the available data
 final_model = web %>%
   model('ARMA(1,2)' = ARIMA(diff ~ 0 + pdq(1,0,2)))
 
-# Select the forecast horizon in days
+# Select the forecast horizon in days (the rest of this code chunk is automated to update with the horizon)
 h = 30
 
 # Forecast the final model
@@ -546,7 +564,7 @@ ggplot(data = final_data, aes(x = Date)) +
 
   geom_line(data = web, aes(x = Date, y = UniqueVisits), size = 0.5, color = '#437cb5') +
   
-  coord_cartesian(xlim = c(as.Date(max(web$Date)-10), as.Date('2020-09-18'))) +
+  coord_cartesian(xlim = c(as.Date(max(web$Date)-10), max(web$Date)+h)) +
   
   labs(x = 'Date', y = 'Unique Visits', title = paste(h,'-Day ARMA(1,2) Forecast', sep = ''))
 
