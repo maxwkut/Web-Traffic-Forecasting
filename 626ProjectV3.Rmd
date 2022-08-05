@@ -243,7 +243,7 @@ models = train %>%
         'SARMA(1,2)(2,2)[7]' = ARIMA(diff ~ 0 + pdq(1, 0, 2)))
 
 models %>%
-  select('SARMA(1,2)(0,0)[7]') %>%
+  select('SARMA(1,2)(2,2)[7]') %>%
   report()
 
 models2 = train %>%
@@ -274,7 +274,7 @@ models %>%
   report()
 
 models %>%
-  select('SARMA(1,2)(0,0)[7]') %>%
+  select('SARMA(1,2)(2,2)[7]') %>%
   report()
 ```
 
@@ -288,7 +288,7 @@ Figure 6 displays of plot of the residuals of the fitted ARMA(1,2) model. Initia
 ```{r Fig6, echo=FALSE, warning=F}
 # Residual diagnostics for the ARMA(2,2) model
 models %>%
-  select('ARMA(1,2)') %>%
+  select('SARMA(1,2)(2,2)[7]') %>%
   gg_tsresiduals() +
   ggtitle('Residual/Innovation Diagnostic Plots')
 
@@ -299,7 +299,7 @@ box_ljung_table = tibble(h = seq(5, 20),
 
 for(i in (1:nrow(box_ljung_table))) {
   calc = models %>%
-    select('ARMA(1,2)') %>%
+    select('SARMA(1,2)(2,2)[7]') %>%
     augment() %>%
     features(.resid, ljung_box, lag = as.numeric(box_ljung_table[i, 'h']))
   
@@ -319,23 +319,10 @@ Table 1 contains the model's polynomial roots. Since they appear to be different
 
 ```{r roots, echo = F}
 # checking for roots
-roots = models %>%
-  select('ARMA(1,2)') %>%
-  glance() %>%
-  select(ar_roots, ma_roots)
+models %>%
+  select('SARMA(1,2)(2,2)[7]') %>%
+  gg_arma()
 
-ar_roots = round(unnest(roots[,1], cols = 'ar_roots'),2)
-ma_roots = round(unnest(roots[,2], cols = 'ma_roots'),2)
-
-roots = unnest(roots, cols = c(ar_roots, ma_roots))
-
-for (i in 2:nrow(roots)) {
-  roots$ar_roots[i] = NA
-}
-
-kable(roots,
-      col.names = c('AR Roots', 'MA Roots'),
-      align = c('c','c'), caption = 'Roots of polynomials', digits = 2)
 ```
 
 The fitted values of the ARMA(1,2) model are plotted against the actual values of the seasonally differenced series $x_t^*$ (Figure 7) and the. 
@@ -505,10 +492,15 @@ ggplot(data = arima_data %>% filter(.model == "ARMA(1,2)"), aes(x = Date)) +
 
 The d
 
+```{r, include = F}
+sarima(web$diff, p = 1, d = 0, q = 2, P = 2, D = 0, Q = 2, S = 7, no.constant = T)
+sarima.for(web$diff, p = 1, d = 0, q = 2, P = 2, D = 0, Q = 2, S = 7, no.constant = T, n.ahead = 120)
+```
+
 ```{r final-forecast, echo = F, fig.height = 4.5}
 # Select and fit the final model with all the available data
 final_model = web %>%
-  model('ARMA(1,2)' = ARIMA(diff ~ 0 + pdq(1,0,2)))
+  model('SARMA(1,2)(2,2)[7]' = ARIMA(diff ~ 0 + pdq(1,0,2)))
 
 # Select the forecast horizon in days (the rest of this code chunk is automated to update with the horizon)
 h = 30
@@ -516,7 +508,7 @@ h = 30
 # Forecast the final model
 final_data = final_model %>%
   
-  select('ARMA(1,2)') %>%
+  select('SARMA(1,2)(2,2)[7]') %>%
   
   forecast(h = paste(h, 'days')) %>%
   
@@ -566,7 +558,7 @@ ggplot(data = final_data, aes(x = Date)) +
   
   coord_cartesian(xlim = c(as.Date(max(web$Date)-10), max(web$Date)+h)) +
   
-  labs(x = 'Date', y = 'Unique Visits', title = paste(h,'-Day ARMA(1,2) Forecast', sep = ''))
+  labs(x = 'Date', y = 'Unique Visits', title = paste(h,'-Day SARMA(1,2)(2,2)[7] Forecast', sep = ''))
 
 ```
 ```{r echo = F}
