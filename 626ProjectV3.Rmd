@@ -249,16 +249,17 @@ models %>%
   glance() %>%
   select(-ar_roots, -ma_roots) %>%
   filter(.model != 'Seasonal Naive') %>%
-  arrange(AIC)
+  arrange(AIC) %>%
+  kable(col.names = c('Model',expression(sigma^2),'Log-Likelihood','AIC','AICc','BIC'))
 ```
 
 The parameters of the ARMA(1,2) model are estimated via conditional least squares and are displayed in Eq(4).
 
 \begin{equation}
   \hat{x}_t = 0.44x_{t-1}+0.13x_{t-2}+w_t+0.05\omega_{t-1}-0.09\omega_{t-2}
-\end{equation}
-\newpage
-Figure 6 displays of plot of the residuals of the fitted ARMA(1,2) model. Initially, the residuals seem to behave like white noise, being centered around zero with a constant variance. However, further analysis of autocorrelation plot and formal testing using the Box-Ljung test indicate that the innovations are not uncorrelated (i.e., they are not white noise). The autocorrelation in the innovations does appear small for most lags, given how similar the various models are this is likely the best fit we can obtain from the ARMA(p,q) modelling proceudre.
+\end{equation}  
+
+Figure 6 displays of plot of the residuals of the fitted ARMA(1,2) model. Initially, the residuals seem to behave like white noise, being centered around zero with a constant variance. However, further analysis of autocorrelation plot and formal testing using the Box-Ljung test indicate that the innovations are not uncorrelated (i.e., they are not white noise). The autocorrelation in the innovations does appear small for most lags, given how similar the various models are this is likely the best fit we can obtain from the ARMA(p,q) modelling procedure.
 \newline
 
 ```{r Fig6, echo=FALSE, warning=F}
@@ -485,28 +486,21 @@ accuracy(arima_forecasts, web) %>%
 Discuss results here
 
 # Conclusion
-
-```{r final-forecast, echo = F}
+ \newpage  
+```{r final-forecast, echo = F, fig.height = 4.5}
+# Fit the final model with all the available data
 final_model = web %>%
-  model('Seasonal Naive' = fable::SNAIVE(diff ~ lag(365)),              # Baseline for comparison (seasonal naive model)
-        'ARMA(2,2)' = ARIMA(diff ~ 0 + pdq(2, 0, 2) + PDQ(0, 0, 0)),
-        'ARMA(1,1)' = ARIMA(diff ~ 0 + pdq(2,0,2)),
-        'ARMA(1,2)' = ARIMA(diff ~ 0 + pdq(1,0,2)),
-        'ARMA(2,1)' = ARIMA(diff ~ 0 + pdq(2,0,1)))
+  model('ARMA(1,2)' = ARIMA(diff ~ 0 + pdq(1,0,2)))
 
-# Retrieves the parameter estimates and selection criterion for the models
-final_model %>%
-  glance() %>%
-  select(-ar_roots, -ma_roots) %>%
-  filter(.model != 'Seasonal Naive') %>%
-  arrange(AIC)
+# Select the forecast horizon in days
+h = 30
 
 # Forecast the final model
 final_data = final_model %>%
   
   select('ARMA(1,2)') %>%
   
-  forecast(h = '30 days') %>%
+  forecast(h = paste(h, 'days')) %>%
   
   hilo() %>%
   
@@ -526,25 +520,45 @@ final_data = final_model %>%
   # Get the lagged values to do the back-transformations
   mutate(weekly_lag = if_else(is.na(weekly_lag), lag(UniqueVisits, 7), weekly_lag),
          annual_lag = if_else(is.na(annual_lag), lag(UniqueVisits, n = 365), annual_lag),
-         total_lag = if_else(is.na(total_lag), lag(lag(UniqueVisits, n = 365), n = 7), total_lag)) %>%
-  
-  # Back-transformations to get the ARIMA model results to the original scale
-  mutate(back_pred = diff + weekly_lag + annual_lag - total_lag,
+         total_lag = if_else(is.na(total_lag), lag(lag(UniqueVisits, n = 365), n = 7), total_lag),
+         back_pred = diff + weekly_lag + annual_lag - total_lag,
          back_lower95 = lower95 + weekly_lag + annual_lag - total_lag,
          back_upper95 = upper95 + weekly_lag + annual_lag - total_lag)
 
+# Have to iteratively compute the back-transformations since we have to use some of the forecast to compute the future forecast
+for ( i in (length(final_data$weekly_lag) - h):length(final_data$weekly_lag) ) {
+  final_data$weekly_lag[i] = final_data$back_pred[i-7]
+  final_data$annual_lag[i] = final_data$back_pred[i-365]
+  final_data$total_lag[i] = final_data$back_pred[i-372]
+  final_data$back_pred[i] = final_data$diff[i] + final_data$weekly_lag[i] + final_data$annual_lag[i] - final_data$total_lag[i]
+  final_data$back_lower95[i] = final_data$lower95[i] + final_data$weekly_lag[i] + final_data$annual_lag[i] - final_data$total_lag[i]
+  final_data$back_upper95[i] = final_data$upper95[i] + final_data$weekly_lag[i] + final_data$annual_lag[i] - final_data$total_lag[i]
+}
+
 ggplot(data = final_data, aes(x = Date)) +
   
-  geom_line(aes(y = back_pred), alpha = 0.5, linetype = 'dashed') +
+  geom_ribbon(aes(ymin = back_lower95, ymax = back_upper95), linetype = 'dashed', alpha = 0.5, fill = 'grey', color = 'darkgrey') +
+  
+  geom_line(aes(y = back_pred), alpha = 0.5, linetype = 'dashed', color = 'darkred') +
 
-  geom_line(data = web, aes(x = Date, y = UniqueVisits), size = 0.5) +
+  geom_point(data = final_data %>% filter(Date > max(web$Date)),
+              aes(x = Date, y = back_pred), alpha = 0.5, color = 'darkred') +
+
+  geom_line(data = web, aes(x = Date, y = UniqueVisits), size = 0.5, color = '#437cb5') +
   
-  coord_cartesian(xlim = c(as.Date(max(web$Date)-10), as.Date('2020-10-01'))) +
+  coord_cartesian(xlim = c(as.Date(max(web$Date)-10), as.Date('2020-09-18'))) +
   
-  labs(x = 'Date', y = 'Unique Visits', title = 'ARMA(1,2)')
+  labs(x = 'Date', y = 'Unique Visits', title = paste(h,'-Day ARMA(1,2) Forecast', sep = ''))
 
 ```
-
+```{r echo = F}
+# Produce a table of the forecast
+final_data %>%
+  filter(Date > max(web$Date)) %>%
+  select(Date, back_lower95, back_pred, back_upper95) %>%
+  kable(col.names = c('Date', 'Lower 95% CI', 'Forecast','Upper 95% CI'),
+        digits = 0, caption = paste(h, '-Day ARMA(1,2) Forecast.', sep = ''))
+```
 \newpage
 
 # References
