@@ -11,20 +11,25 @@ output:
   pdf_document:
     fig_width: 17
     fig_height: 6
-    citation_package: natbib
+    citation_package: natbib 
+    extra_dependencies: ["amsmath", "float", "booktabs"]  
 fontsize: 11pt
 bibliography: citations.bib
----
-\vspace{-1.5cm}  
 
 ---
+\vspace{-1.5cm}  
+---
+
+```{r setup, include = FALSE}
+```
+
 # Introduction and Motivation
 
 <!-- Introduce Your data: Explain the context and background story of your data -->
 The objective of this analysis is to forecast daily unique visitors to an academic website over a 30-day horizon. Predicting website traffic allows IT departments to manage project throughput and prioritize maintenance and enhancements to website functionality and effectively allocate web server resources. Web traffic is also a key indicator of customer growth and expansion, as well as sustaining recurring customers and ingrained growth. The details provided by web traffic throughput reports contain many metrics, including page loads, returning visitors, and unique visits, each of which conveys a different picture and set of information for an organization. As well, having a picture of expected throughput and confirming (or denying) expectations with reality allows a business to understand unexpected growth and/or unexpected decay in business development.
 
 The data contains five years of daily time series data of user visits. There are four features in the data set, which include daily counts for the number of page loads, first-time visitors, returning visitors, and unique visitors.^[A visit is defined as a stream of hits on one or more pages on the site on a given day by the same user within a 6-hour window, identified by the IP address of the specific device. Returning visitors are identified through allowed cookies on a user's device, and the total number of returning and first-time visitors is, by definition, the number of unique visitors.] An initial plot of the data shows strong seasonality and volatility, but doesn't appear to have any discernible trend or cyclical behavior. An explanation for this could be due to the nature of the website. Students would likely be the largest share of users for a website of this nature, and the seasonality seems associated with the academic calendar typically seen at academic institutions.  
-\  
+\newline
 
 <!-- Plot the data and summarize your preliminary findings: trend, cycle, volatility, etc. -->
 ```{r include=F, echo=F}
@@ -45,6 +50,7 @@ library(Hmisc)   # Lowess smoothing
 library(tseries) # ARMA
 library(knitr)   # Table
 library(showtext) # package to use the Latex font in plots
+library(kableExtra)
 font_add(family = "cm", regular = "computermodern.ttf")
 showtext_auto()
 
@@ -130,19 +136,19 @@ autoplot(tsData[,"UniqueVisits"], color = '#437cb5')+
 \newpage
 
 
-A popular approach in addressing non-stationarity due to seasonality is to eliminate these effects via seasonal differencing. The seasonal difference of a time series is the series of changes from one season to the next, which is defined as follows:
+A popular approach in addressing non-stationarity due to seasonality is to eliminate these effects via seasonal differencing. The seasonal difference of a time series is the series of changes from one season to the next, which is defined (1).
 
 \begin{equation}
   \triangledown_s x_t=x_t-x_{t-s}
 \end{equation}
 
-One challenge with the unique visits, however, is the complex seasonality. Multiple seasonal patterns exist within the time series, and the family of SARIMA(p,d,q)(P,D,Q)[s] models only allow for a single seasonal difference. In an attempt to handle the complex seasonality, we performed a two-step seasonal differencing approach by taking the annual difference of the time series, then taking the weekly difference of the transformed time series from the previous step. This can be more clearly shown as
+One challenge with the unique visits, however, is the complex seasonality. Multiple seasonal patterns exist within the time series, and the family of SARIMA(p,d,q)(P,D,Q)[s] models only allow for a single seasonal difference. In an attempt to handle the complex seasonality, we performed a two-step seasonal differencing approach as displayed in (2) by taking the annual difference of the time series, and then taking the weekly difference of the transformed time series from the previous step.
 
 \begin{equation}
   x_t^* = \triangledown_7 \triangledown_{365} x_t = (1 - B^7)(1 - B^{365})x_t = (x_t - x_{t-7}) - (x_{t-365}-x_{t-372})
 \end{equation}
 
-where B is the backshift operator. Time plots of the aforementioned transformation steps series at different stages are displayed in Figure 4. The differenced series appears to be stationary with a constant mean and variance.
+where B is the backshift operator. Time plots of the aforementioned transformation steps are displayed in Figure 4. The differenced series $x_t^*$ appears to be stationary with a constant mean and variance.
 \newline
 
 ```{r Fig4, echo=F, message=F, fig.height=4}
@@ -203,7 +209,7 @@ ggplot(train, aes(Date, diff)) +
 ```
 \newpage
 
-The ACF and PACF of the differenced series $x_t^*$ are displayed in Figure 5. Neither the ACF nor the PACF seems to cut off after a certain lag, which would be indicative of an AR or MA process. Rather, both of them appear to tail off over time, making it difficult to determine specific orders for the family of ARMA(p,q) models defined in Eq(3) as:
+The ACF and PACF of the differenced series $x_t^*$ are displayed in Figure 5. Neither the ACF nor the PACF seems to cut off after a certain lag, which would be indicative of an AR or MA process. Rather, both of them appear to tail off over time, making it difficult to determine specific orders for the family of ARMA(p,q) models defined in (3).
 \newline
 
 ```{r Fig5, echo=F, message=F, fig.height=5}
@@ -226,9 +232,11 @@ Problems with this approach:
 \begin{equation}
    x_t = \alpha + \phi_1x_{t-1}+\cdot\cdot\cdot+\phi_px_{t-p}+w_t+\theta_1\omega_{t-1}+\cdot\cdot\cdot+\theta_p\omega_{t-q}\\
 \end{equation}
-\begin{center}where $\phi_p\neq0, \theta_p\neq0,\sigma_w^2>0$, and the model is causal and invertible.\end{center}  
+\begin{center}where $\phi_p\neq0, \theta_p\neq0,\sigma_w^2>0$, and the model is causal and invertible.\end{center}    
 
-We opted to fit a range of ARMA(p,q) models with small orders, with the final model selected based the forecasting accuracy of the models on a test or hold-out set since our primary goal for this analysis is forecasting. The model selection criterion for the fitted ARMA models is shown in the table below. 
+
+We opted to fit a range of ARMA(p,q) models with small orders, with the final model selected based on AIC and BIC. The model selection criterion for the fitted ARMA models is shown in the Table 1 below.
+
 
 ```{r arma, echo=F}
 # Fit various models to the training set
@@ -240,57 +248,48 @@ models = train %>%
         'ARMA(2,1)' = ARIMA(diff ~ 0 + pdq(2, 0, 1) + PDQ(0, 0, 0)),
         'ARMA(0,1)' = ARIMA(diff ~ 0 + pdq(0, 0, 1) + PDQ(0, 0, 0)),
         'ARMA(1,0)' = ARIMA(diff ~ 0 + pdq(1, 0, 0) + PDQ(0, 0, 0)),
-        'SARMA(1,2)(2,2)[7]' = ARIMA(diff ~ 0 + pdq(1, 0, 2)))
-
-models %>%
-  select('SARMA(1,2)(2,2)[7]') %>%
-  report()
-
-models2 = train %>%
-  model('test' = ARIMA(annual_diff ~ 1 + pdq(1,0,2) + PDQ(0, 0, 1, period = 7)),
-        'test2' = ARIMA(annual_diff ~ 1 + pdq(1,0,2) + PDQ(0, 1, 2, period = 7)),
-        'test3' = ARIMA(annual_diff ~ 1 + pdq(1,0,2) + PDQ(1, 1, 2, period = 7)))
-
-models2 %>%
-  glance() %>%
-  mutate(sigma = sqrt(sigma2))
+        'SARMA(1,2)(0,2)[7]' = ARIMA(diff ~ 0 + pdq(1, 0, 2)))
 
 # Retrieves the parameter estimates and hypothesis tests (p-values) for the models
 models %>%
   glance() %>%
   filter(.model != 'Seasonal Naive') %>%
   mutate(std_err = sqrt(sigma2)) %>%
-  select(.model, std_err, log_lik, AIC, AICc, BIC, -ar_roots, -ma_roots, -sigma2) %>%
+  select(.model, -std_err, -log_lik, AIC, -AICc, BIC, -ar_roots, -ma_roots, -sigma2) %>%
   arrange(AIC) %>%
-  kable(col.names = c('Model', 'Innov. Std. Error','Log-Likelihood','AIC','AICc','BIC'),
-        digits = 2, align = c('l', 'c', 'c', 'c', 'c', 'c'))
+  kable(col.names = c('Model', 'AIC', 'BIC'),
+        digits = 2, align = c('l', 'c', 'c'),
+        caption = "Model estimation results.")%>%
+  kable_styling(font_size = 12, latex_options = "hold_position")%>%
+  row_spec(0, bold = TRUE)
 ```
 
-The parameters of the ARMA(1,2) model are estimated via conditional least squares and are displayed in Eq(4).
+We decided to choose the $SARMA(1,2)(0,2)_{7}$ model as it performed best in terms of AIC and BIC. Its parameters are estimated via maximum likelihood and are displayed in (4).
 
-```{r, include = F}
+```{r, include = F, eval=F}
 models %>%
   select('ARMA(1,2)') %>%
   report()
 
 models %>%
-  select('SARMA(1,2)(2,2)[7]') %>%
+  select('SARMA(1,2)(0,2)[7]') %>%
   report()
 ```
 
 \begin{equation}
-  \hat{x}_t = 0.7164_{(0.0414)}x_{t-1}+ \omega_t - 0.1953_{(0.0489)}\omega_{t-1} - 0.089_{(0.0325)}\omega_{t-2}
+  \hat{x}_t = 0.94_{(0.02)}x_{t-1}+ \omega_t - 0.34_{(0.03)}\omega_{t-1} - 0.26_{(0.03)}\omega_{t-2}-0.65_{(0.03)}\omega_{t-7}-0.18_{(0.03)}\omega_{t-14}
 \end{equation}  
 
-Figure 6 displays of plot of the residuals of the fitted ARMA(1,2) model. Initially, the residuals seem to behave like white noise, being centered around zero with a constant variance. However, further analysis of autocorrelation plot and formal testing using the Box-Ljung test indicate that the innovations are correlated (i.e., they are not white noise). The autocorrelation in the innovations does appear small for most lags, given how similar the various models are this is likely the best fit we can obtain from the ARMA(p,q) modelling procedure.
+Figure 6 displays of plot of the residuals of the fitted SARMA$(1,2)(0,2)_{12}$ model. Initially, the residuals seem to behave like white noise, being centered around zero with a constant variance. However, further analysis of the autocorrelation plot and formal testing using the Box-Ljung test indicate that the residuals are correlated (i.e., they are not white noise). The autocorrelation in the residuals does appear small for most lags, given how similar the various models are this is likely the best fit we can obtain from the ARMA(p,q) modeling procedure.
 \newline
 
 ```{r Fig6, echo=FALSE, warning=F}
 # Residual diagnostics for the ARMA(2,2) model
 models %>%
-  select('SARMA(1,2)(2,2)[7]') %>%
-  gg_tsresiduals() +
-  ggtitle('Residual/Innovation Diagnostic Plots')
+  select('SARMA(1,2)(0,2)[7]') %>%
+  gg_tsresiduals()+
+  ggtitle('Residual Diagnostic Plots')+
+  ylab("Residual")
 
 # Compute the test statistic(s) for the Box-Ljung test and plot them
 box_ljung_table = tibble(h = seq(5, 20),
@@ -299,7 +298,7 @@ box_ljung_table = tibble(h = seq(5, 20),
 
 for(i in (1:nrow(box_ljung_table))) {
   calc = models %>%
-    select('SARMA(1,2)(2,2)[7]') %>%
+    select('SARMA(1,2)(0,2)[7]') %>%
     augment() %>%
     features(.resid, ljung_box, lag = as.numeric(box_ljung_table[i, 'h']))
   
@@ -309,35 +308,38 @@ for(i in (1:nrow(box_ljung_table))) {
 
 ggplot(box_ljung_table, aes(x = h, y = lb_pvalue)) +
   geom_point(pch = 1) +
-  geom_hline(yintercept = 0.05, color = 'blue', linetype = 'dashed') +
+  geom_hline(yintercept = 0.05, color = '#437cb5', linetype = 'dashed') +
   coord_cartesian(ylim = c(0,1)) +
-  labs(y = 'p-values', x = 'Lags (H)', title = 'P-values for the Box-Ljung statistic')
+  labs(y = 'p-values', x = 'Lags (H)', title = 'P-values for the Box-Ljung Statistic', 
+       caption = 'Figure 6: Diagnostic Plots')
 ```
 
 
-Table 1 contains the model's polynomial roots. Since they appear to be different from each other by a reasonable margin, we can conclude that there is no parameter redundancy in the model.
+Figure 7 plots the inverse AR and MA roots of our SARMA model. A causal invertible model should have all the roots outside the unit circle. Equivalently, the inverse roots should lie inside the unit circle (shown in red). Hence, there dosn't appear to be any parameter redundancy.
 
-```{r roots, echo = F}
+
+```{r roots, echo = F, fig.align='center'}
 # checking for roots
 models %>%
-  select('SARMA(1,2)(2,2)[7]') %>%
-  gg_arma()
+  select('SARMA(1,2)(0,2)[7]') %>%
+  gg_arma()+
+  labs(title="Inverse AR and MA Roots",caption = "Figure 7: Inverse Roots")
 
 ```
 
-The fitted values of the ARMA(1,2) model are plotted against the actual values of the seasonally differenced series $x_t^*$ (Figure 7) and the. 
+Fitted values of the $SARMA(1,2)(0,2)_{7}$ model are transformed to the original scale in order to obtain a fitted plot as seen in Figure 8. The fit of the $SARMA(1,2)(0,2)_{7}$ model (blue) is plotted on top of the number of unique visits (black). 
 \newline
 
 ```{r Fig7, echo=F, message=FALSE, results='hide', warning=FALSE}
 # See the detailed summary for the model specifications
 arima_mdl_details = models %>%
   report() %>%
-  filter(.model == "ARMA(1,2)")
+  filter(.model == 'SARMA(1,2)(0,2)[7]')
 
 # Plot the fitted versus actual values
 fit_data = models %>%
   augment() %>%
-  filter(.model == "ARMA(1,2)") %>%
+  filter(.model == 'SARMA(1,2)(0,2)[7]') %>%
   select(Date, actual = diff, fit = .fitted)
 
 #ggplot(fit_data, aes(x = Date)) +
@@ -359,26 +361,51 @@ dta = dta %>%
   mutate(back_fit = fit + weekly_lag + annual_lag - total_lag)
 
 ggplot(dta, aes(x = Date)) +
-
-  geom_line(aes(y = UniqueVisits), alpha = 0.5, color = 'black', size = 0.5) +
-  
-  geom_point(aes(y = UniqueVisits), alpha = 0.5, color = 'black', size = 0.5) +
-  
+  geom_point(aes(y = UniqueVisits), color = 'black') +
+  #geom_point(aes(y = UniqueVisits), alpha = 0.5, color = 'black', size = 0.5) +
   #geom_line(aes(y = back_fit), color = 'darkred', linetype = 'dashed', size = 0.5) +
-  
-  geom_point(aes(y = back_fit), color = 'darkred', size = 0.5) +
-  
+  geom_line(aes(y = back_fit), color = '#437cb5', alpha= 0.8) +
   labs(x = 'Date', y = 'Unique visits',
-       title = 'Back-transformed ARMA(1,2) Model',
-       caption = 'Fitted model shown by black line and the actual values of the training set are shown in red.')
+       title = 'Fitted SARMA(1,2)(0,2)[7] Model',
+       caption = 'Figure 8: Fitted model (blue) vs Unique Visits (black) using training set')
 
 ```
 
+@fpp3 note that seasonal differencing of high order does not make a lot of sense. Seasonal versions of ARIMA models are designed for shorter periods such as 12 for monthly data or 4 for quarterly data. The `Arima()` and `auto.arima()` functions only allow for a seasonal period up to m=350, but in practice will usually run out of memory whenever the seasonal period is more than about 200. Hence, in addition to the ARMA model, we decided to run Prophet and dynamic linear regression models, which are in theory better at handling this type of seasonality.
+
+
 ## Prophet
 
-@prophet
+Prophet is a forecasting tool developed by @prophet that is based on an additive regression model with three parts as described in (5).
 
-@fableprophet
+\begin{equation}
+y(t)=g(t)+s(t)+h(t)+\epsilon_t
+\end{equation}
+
+where $g(t)$ is the trend function, $s(t)$ is the seasonality function, and $h(t)$ models holiday effect. It is known to work best with data that have strong seasonal effects and/or multiple seasonalities. 
+
+## Dynamic Harmonic Regression
+
+When a time series exhibits complex seasonality, it is common to model the seasonal component using fourier terms. Dynamic Harmonic Regression (DHR) is based on the principal that a combination of sine and cosine functions can approximate any periodic function. We use a harmonic regression approach where the seasonal patterns are modeled by fourier terms and short-term dynamics are handled by an ARMA error. Thus, the model allows for multiple seasonalities of any length by including fourier terms of different frequencies. @prophet note that using 3 fourier terms for weekly seasonality, and 10 for yearly seasonality works well for most problems. Hence, our DHR model is formulated in (6).
+
+\begin{equation}
+y_t=\beta_0+s_7(t,m)+s_{365}(t,n)+\epsilon_t
+\end{equation}
+
+$$s_7(t)=\sum_{i=1}^3[\alpha_i\sin(\frac{2\pi it}{7})+\beta_i\cos(\frac{2\pi it}{7})]$$
+
+$$s_{365}(t)=\sum_{i=1}^{10}[\gamma_i\sin(\frac{2\pi it}{365})+\delta_l\cos(\frac{2\pi it}{365})]$$
+where $\epsilon_t$ is modeled as a non-seasonal ARIMA process.
+
+```{r dhr, echo=F}
+dhrFit <- train %>%
+  model(
+    'Dynamic Harmonic Regression' = ARIMA(UniqueVisits ~ PDQ(0, 0, 0) + pdq(d = 0) +
+                  fourier(period = 365, K = 10) +
+                  fourier(period = 7, K = 3)))
+
+dhrFc <- dhrFit %>% forecast(h = 341)
+```
 
 
 # Results  
@@ -386,6 +413,7 @@ ggplot(dta, aes(x = Date)) +
 ```{r forecast, echo=F, message = F, warning = F, error = F}
 # Plot the predictions for the transformed series
 arima_forecasts = models %>%
+  select(c("SARMA(1,2)(0,2)[7]","Seasonal Naive"))%>%
   forecast(h = '341 days')
 
 prophet_model = train %>%
@@ -438,15 +466,21 @@ arima_data = left_join(arima_data,
 
 All the above models were trained on a training set, and the predictive accuracy was then evaluated on a test set. The training set consists of page visits starting from `r min(train$Date)` until `r max(train$Date)`, and test set contains the data from `r min(test$Date)` to `r max(test$Date)`, making up the last `r nrow(test)` observations of the data. Our primary evaluation metrics for model comparison are the root mean squared error (RMSE) and mean absolute error (MAE), which both have the advantage of being measured on the same scale as the data (i.e., the number of website visits). Using these are our primary accuracy measures gives us more interpretable results. For clarification, the RMSE and MAE are defined as  
 
-$$ RMSE = \sqrt{ \Bigg( \frac{1}{n}\sum_{i = 1}^{n} (y_i - \hat{y}_i)^2 \Bigg) }$$  
+\begin{equation}
+ RMSE = \sqrt{ \Bigg( \frac{1}{n}\sum_{i = 1}^{n} (y_i - \hat{y}_i)^2 \Bigg) }  
+\end{equation}
 
-$$MAE=\frac{1}{n}\sum_{i=1}^{n}|y_i-\hat y_i|$$
+\begin{equation}
+MAE=\frac{1}{n}\sum_{i=1}^{n}|y_i-\hat y_i|
+\end{equation}
 
-In addition to these accuracy measures, a common-sense baseline serves as a sanity check, and is often used as a benchmark for more advanced time series models. Given daily data with yearly seasonality, a common-sense baseline is to predict the number of unique visits at time t to be equal to the number of unique visits at t-365. In other words, a random walk model making a constant prediction with yearly seasonality, which is known as a seasonal naive model (Eq. X)
+In addition to these accuracy measures, we use a common-sense baseline as a sanity check, which serves as a benchmark for more advanced time series models. Given daily data with yearly seasonality, our common-sense baseline is to predict the number of unique visits at time t to be equal to the number of unique visits at t-365. In other words, a random walk model making a constant prediction with yearly seasonality, which is known as a seasonal naive model (11).
 
-$$\hat x_t = x_{t-365}$$
+\begin{equation}
+\hat x_t = x_{t-365}
+\end{equation}
 
-The forecast accuracy for the ARMA(1,2) model shows the best performance on the test set, 
+Table 2 and Figure 9 summarize the performance results of our models on the test set. All models outperformed the seasonal naive baseline as measured by MAE and RMSE. Overall, the $SARMA(1,2)(0,2)_{7}$ model performed the best, having the lowest MAE and RMSE.
  
 
 
@@ -454,22 +488,41 @@ The forecast accuracy for the ARMA(1,2) model shows the best performance on the 
 # Shows various measures of accuracy in the point estimates for the forecast
 accuracy(arima_forecasts, web) %>%
   add_row(accuracy(prophet_forecast, web)) %>%
-  select(-.type, -ACF1) %>%
+  add_row(accuracy(dhrFc, web)) %>%
+  select(-.type, -ACF1, -ME, -MPE, -MASE, -RMSSE, -MAPE) %>%
   arrange(MAE) %>%
-  rename(Model = .model) %>%
-  kable(digits = 2, caption = 'Accuracy measures from the test set performance of fitted models.')
+  rename(Model = .model)%>%
+  kable(digits=2, caption = "Model errors on test set.")%>%
+  kable_styling(font_size = 12, latex_options = "hold_position")%>%
+  row_spec(0, bold = TRUE)%>%
+  kableExtra::pack_rows("Baseline", 4,4 )
 ```
 
-```{r mae_plot, echo = F, include = F}
+```{r mae_plot, echo = F, fig.width= 5, fig.height=3.5, fig.align='center'}
 accuracy(arima_forecasts, web) %>%
   add_row(accuracy(prophet_forecast, web)) %>%
-  select(.model, RMSE, MAE) %>%
+  add_row(accuracy(dhrFc, web)) %>%
+  select(.model, MAE) %>%
   rename(Model = .model) %>%
-  pivot_longer(c(MAE, RMSE), names_to = 'Metric', values_to = 'Value') %>%
-  ggplot(aes(x = Model, y = Value, fill = Metric)) +
-  geom_bar(position="dodge", stat="identity") +
-  labs(caption = 'Selected accuracy measures for the various fitted models.')
+  filter(Model == c("SARMA(1,2)(0,2)[7]",
+                    "Seasonal Naive", "Prophet", "Dynamic Harmonic Regression"))%>%
+  pivot_longer(MAE, names_to = 'Metric', values_to = 'Value')%>%
+  ggplot(aes(x = factor(Model, levels= c("SARMA(1,2)(0,2)[7]",
+                                         "Dynamic Harmonic Regression",
+                                         "Prophet","Seasonal Naive")), 
+             y = Value, fill= Model)) +
+  geom_col() +
+  geom_hline(yintercept = 302, linetype = 2, color = '#437cb5')+
+  labs(caption = 'Figure 9: Test error by model type', title = "Test Error by Model Type")+
+  xlab(NULL)+
+  ylab("MAE")+
+  scale_fill_manual(values = c("grey60",'grey60', '#437cb5','grey60'))+
+  theme(legend.position = "none", text=element_text(family = 'cm',size=14))+
+  scale_x_discrete(labels=c('SARMA(1,2)(0,2)[7]'="SARMA", 
+                            'Dynamic Harmonic Regression'="DHR", 
+                            'Seasonal Naive'="Baseline"))
 ```
+
 
 ```{r echo = F}
 # Plot the forecasts
@@ -500,7 +553,7 @@ sarima.for(web$diff, p = 1, d = 0, q = 2, P = 2, D = 0, Q = 2, S = 7, no.constan
 ```{r final-forecast, echo = F, fig.height = 4.5}
 # Select and fit the final model with all the available data
 final_model = web %>%
-  model('SARMA(1,2)(2,2)[7]' = ARIMA(diff ~ 0 + pdq(1,0,2)))
+  model('SARMA(1,2)(0,2)[7]' = ARIMA(diff ~ 0 + pdq(1,0,2)))
 
 # Select the forecast horizon in days (the rest of this code chunk is automated to update with the horizon)
 h = 30
@@ -508,7 +561,7 @@ h = 30
 # Forecast the final model
 final_data = final_model %>%
   
-  select('SARMA(1,2)(2,2)[7]') %>%
+  select('SARMA(1,2)(0,2)[7]') %>%
   
   forecast(h = paste(h, 'days')) %>%
   
@@ -558,7 +611,7 @@ ggplot(data = final_data, aes(x = Date)) +
   
   coord_cartesian(xlim = c(as.Date(max(web$Date)-10), max(web$Date)+h)) +
   
-  labs(x = 'Date', y = 'Unique Visits', title = paste(h,'-Day SARMA(1,2)(2,2)[7] Forecast', sep = ''))
+  labs(x = 'Date', y = 'Unique Visits', title = paste(h,'-Day SARMA(1,2)(0,2)[7] Forecast', sep = ''))
 
 ```
 ```{r echo = F}
