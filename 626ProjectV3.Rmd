@@ -2,11 +2,11 @@
 title: \vspace{-2.0cm} \textbf{Web Traffic Forecasting}
 subtitle: Time Series Analysis
 author:
-- \small \textbf{Shree Karimkolikuzhiyil}; Programming; Statistics, M.S. (Distance); [shreejesh\@tamu.edu](mailto:shreejesh@tamu.edu){.email}
-- \small \textbf{Jingcheng Xia}; Computations; Computer Science, B.S. (On-Campus); [sixtyfour64\@tamu.edu](mailto:sixtyfour64@tamu.edu){.email}
-- \small \textbf{Jackson Smith}; Analysis; Statistics, M.S. (Distance);  [jackson.t.smith\@tamu.edu](mailto:jackson.t.smith@tamu.edu){.email}
 - \small \textbf{Samuel Burge}; Writing; Statistics, M.S. (Distance);  [samuelburge\@tamu.edu](mailto:samuelburge@tamu.edu){.email}
+- \small \textbf{Shree Karimkolikuzhiyil}; Programming; Statistics, M.S. (Distance); [shreejesh\@tamu.edu](mailto:shreejesh@tamu.edu){.email}
 - \small \textbf{Max Kutschinski}; Theory; Statistics, M.S. (Distance); [mwk556\@tamu.edu](mailto:mwk556@tamu.edu){.email}
+- \small \textbf{Jackson Smith}; Analysis; Statistics, M.S. (Distance);  [jackson.t.smith\@tamu.edu](mailto:jackson.t.smith@tamu.edu){.email}
+- \small \textbf{Jingcheng Xia}; Computations; Computer Science, B.S. (On-Campus); [sixtyfour64\@tamu.edu](mailto:sixtyfour64@tamu.edu){.email}
 output:
   pdf_document:
     fig_width: 17
@@ -602,7 +602,7 @@ ggplot(data = final_data, aes(x = Date)) +
               aes(x = Date, y = back_pred), color = '#437cb5', size=2)+
   geom_line(data = web, aes(x = Date, y = UniqueVisits), alpha=0.5,size=1,color = 'black') +
   coord_cartesian(xlim = c(as.Date(max(web$Date)-10), max(web$Date)+h)) +
-  labs(x = 'Date', y = 'Unique Visits', title = '30-Day Forecast of Unique Website Visits', caption = "Figure 11: 30-day forecast")+
+  labs(x = 'Date', y = 'Unique Visits', title = '30-Day Forecast of Unique Website Visits', caption = "Figure 11: 30-day forecast (blue)")+
   scale_x_date(breaks = "days", date_labels = "%m/%d")+
   theme(axis.text.x = element_text(angle = 60, hjust=1))
 ```
