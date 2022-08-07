@@ -235,64 +235,56 @@ Problems with this approach:
 \begin{center}where $\phi_p\neq0, \theta_p\neq0,\sigma_w^2>0$, and the model is causal and invertible.\end{center}    
 
 
-We opted to fit a range of ARMA(p,q) models with small orders, with the final model selected based on AIC and BIC. The model selection criterion for the fitted ARMA models is shown in the Table 1 below.
+We opted to fit a range of SARIMA(p,q) models with small orders, with the final model selected based on AIC and BIC. The model selection criterion for the fitted SARIMA models is shown in the Table 1 below. All of the proposed SARIMA models are fitted using the same order of differencing to ensure that their AIC and BIC are comparable.
 
+\newpage
 
 ```{r arma, echo=F}
 # Fit various models to the training set
 models = train %>%
   model('Seasonal Naive' = fable::SNAIVE(diff ~ lag(365)),                        # Baseline for comparison (seasonal naive model)
-        'ARIMA(0,0,1)(0,1,0)[7]' = ARIMA(diff ~ 1 + pdq(0, 0, 1) + PDQ(0, 1, 0, period = 7)),
-        'ARIMA(1,0,0)(0,1,0)[7]' = ARIMA(diff ~ 1 + pdq(1, 0, 0) + PDQ(0, 1, 0, period = 7)),
-        'ARIMA(1,0,1)(0,1,0)[7]' = ARIMA(diff ~ 1 + pdq(1, 0, 1) + PDQ(0, 1, 0, period = 7)),
-        'ARIMA(1,0,2)(0,1,0)[7]' = ARIMA(diff ~ 1 + pdq(1, 0, 2) + PDQ(0, 1, 0, period = 7)),
-        'ARIMA(1,0,2)(0,1,1)[7]' = ARIMA(diff ~ 1 + pdq(1, 0, 2) + PDQ(0, 1, 1, period = 7)),
-        'ARIMA(1,0,2)(1,1,1)[7]' = ARIMA(diff ~ 1 + pdq(1, 0, 2) + PDQ(1, 1, 1, period = 7)),
-        'ARIMA(1,0,2)(0,1,2)[7]' = ARIMA(diff ~ 1 + pdq(1, 0, 2) + PDQ(0, 1, 2, period = 7)),
-        'ARIMA(1,0,2)(1,1,2)[7]' = ARIMA(diff ~ 1 + pdq(1, 0, 2) + PDQ(1, 1, 2, period = 7)),
-        'ARIMA(1,0,2)(2,1,2)[7]' = ARIMA(diff ~ 1 + pdq(1, 0, 2) + PDQ(2, 1, 2, period = 7)))
+        'SARIMA(0,0,1)(0,1,0)[7]' = ARIMA(diff ~ 1 + pdq(0, 0, 1) + PDQ(0, 1, 0, period = 7)),
+        'SARIMA(1,0,0)(0,1,0)[7]' = ARIMA(diff ~ 1 + pdq(1, 0, 0) + PDQ(0, 1, 0, period = 7)),
+        'SARIMA(1,0,1)(0,1,0)[7]' = ARIMA(diff ~ 1 + pdq(1, 0, 1) + PDQ(0, 1, 0, period = 7)),
+        'SARIMA(1,0,2)(0,1,0)[7]' = ARIMA(diff ~ 1 + pdq(1, 0, 2) + PDQ(0, 1, 0, period = 7)),
+        'SARIMA(1,0,2)(0,1,1)[7]' = ARIMA(diff ~ 1 + pdq(1, 0, 2) + PDQ(0, 1, 1, period = 7)),
+        'SARIMA(1,0,2)(1,1,1)[7]' = ARIMA(diff ~ 1 + pdq(1, 0, 2) + PDQ(1, 1, 1, period = 7)),
+        'SARIMA(1,0,2)(0,1,2)[7]' = ARIMA(diff ~ 1 + pdq(1, 0, 2) + PDQ(0, 1, 2, period = 7)),
+        'SARIMA(1,0,2)(1,1,2)[7]' = ARIMA(diff ~ 1 + pdq(1, 0, 2) + PDQ(1, 1, 2, period = 7)),
+        'SARIMA(1,0,2)(2,1,2)[7]' = ARIMA(diff ~ 1 + pdq(1, 0, 2) + PDQ(2, 1, 2, period = 7)))
 
-# Retrieves the parameter estimates and hypothesis tests (p-values) for a specific model
-models %>%
-  select('ARIMA(1,0,2)(1,1,2)[7]') %>%
-  report()
 
 # Retrieves the model selection criterion for the panel of ARIMA models fitted
 models %>%
   glance() %>%
   filter(.model != 'Seasonal Naive') %>%
   mutate(std_err = sqrt(sigma2)) %>%
-  select(.model, std_err, log_lik, AIC, AICc, BIC, -ar_roots, -ma_roots, -sigma2) %>%
+  select(.model, -std_err, -log_lik, AIC, -AICc, BIC, -ar_roots, -ma_roots, -sigma2) %>%
   arrange(AIC) %>%
-  kable(col.names = c('Model', 'Innov. Std. Error','Log-Likelihood','AIC','AICc','BIC'),
-        digits = 2, align = c('l', 'c', 'c', 'c', 'c', 'c'))
+  kable(col.names = c('Model', 'AIC', 'BIC'),
+        digits = 2, align = c('l', 'c', 'c'),
+        caption = "Model estimation results.")%>%
+  kable_styling(font_size = 12)%>%
+  row_spec(0, bold = TRUE)
 ```
 
-We decided to choose the $SARMA(1,2)(0,2)_{7}$ model as it performed best in terms of AIC and BIC. Its parameters are estimated via maximum likelihood and are displayed in (4).
+We decided to choose the $SARIMA(1,0,2)(1,1,2)_{7}$ model as it performed best in terms of AIC and BIC. Its parameters are estimated via maximum likelihood and are displayed in (4).
 
-```{r, include = F, eval=F}
-models %>%
-  select('ARMA(1,2)') %>%
-  report()
-
-models %>%
-  select('SARMA(1,2)(0,2)[7]') %>%
-  report()
-```
 
 \begin{equation}
-  \hat{x}_t = 0.94_{(0.02)}x_{t-1}+ \omega_t - 0.34_{(0.03)}\omega_{t-1} - 0.26_{(0.03)}\omega_{t-2}-0.65_{(0.03)}\omega_{t-7}-0.18_{(0.03)}\omega_{t-14}
+  \hat{x}_t = 0.94x_{t-1}+ 0.23x_{t-7}+\omega_t - 0.34\omega_{t-1} - 0.25\omega_{t-2}-0.65\omega_{t-7}-0.18\omega_{t-14}
 \end{equation}  
 
-Figure 6 displays of plot of the residuals of the fitted SARMA$(1,2)(0,2)_{12}$ model. Initially, the residuals seem to behave like white noise, being centered around zero with a constant variance. However, further analysis of the autocorrelation plot and formal testing using the Box-Ljung test indicate that the residuals are correlated (i.e., they are not white noise). The autocorrelation in the residuals does appear small for most lags, given how similar the various models are this is likely the best fit we can obtain from the ARMA(p,q) modeling procedure.
+Figure 6 displays of plot of the residuals of the fitted $SARIMA(1,0,2)(1,1,2)_{7}$ model. Initially, the residuals seem to behave like white noise, being centered around zero with a constant variance. However, further analysis of the autocorrelation plot and formal testing using the Box-Ljung test indicate that the residuals are correlated (i.e., they are not white noise). The autocorrelation in the residuals does appear small for most lags, given how similar the various models are this is likely the best fit we can obtain from the ARMA(p,q) modeling procedure.
 \newline
 
 ```{r Fig6, echo=FALSE, warning=F}
 # Residual diagnostics for the ARMA(2,2) model
 models %>%
-  select('ARIMA(1,0,2)(1,1,2)[7]') %>%
-  gg_tsresiduals() +
-  ggtitle('Residual/Innovation Diagnostic Plots')
+  select('SARIMA(1,0,2)(1,1,2)[7]') %>%
+  gg_tsresiduals()+
+  ggtitle('Residual Diagnostic Plots')+
+  ylab("Residual")
 
 # Compute the test statistic(s) for the Box-Ljung test and plot them
 box_ljung_table = tibble(h = seq(5, 20),
@@ -301,7 +293,7 @@ box_ljung_table = tibble(h = seq(5, 20),
 
 for(i in (1:nrow(box_ljung_table))) {
   calc = models %>%
-    select('ARIMA(1,0,2)(1,1,2)[7]') %>%
+    select('SARIMA(1,0,2)(1,1,2)[7]') %>%
     augment() %>%
     features(.resid, ljung_box, lag = as.numeric(box_ljung_table[i, 'h']))
   
@@ -312,45 +304,37 @@ for(i in (1:nrow(box_ljung_table))) {
 ggplot(box_ljung_table, aes(x = h, y = lb_pvalue)) +
   geom_point(pch = 1) +
   geom_hline(yintercept = 0.05, color = 'blue', linetype = 'dashed') +
-  coord_cartesian(ylim = c(0,1)) +
-  labs(y = 'p-values', x = 'Lags (H)', title = 'P-values for the Box-Ljung statistic')
+  coord_cartesian(ylim = c(0,1)) +  
+  labs(y = 'p-values', x = 'Lags (H)', title = 'P-values for the Box-Ljung Statistic', 
+       caption = 'Figure 6: Diagnostic Plots')
 ```
 
 
-Figure 7 plots the inverse AR and MA roots of our SARMA model. A causal invertible model should have all the roots outside the unit circle. Equivalently, the inverse roots should lie inside the unit circle (shown in red). Hence, there dosn't appear to be any parameter redundancy.
+Figure 7 plots the inverse AR and MA roots of our SARIMA model. A causal invertible model should have all the roots outside the unit circle. Equivalently, the inverse roots should lie inside the unit circle (shown in red). Hence, there dosn't appear to be any parameter redundancy.
 
 
 ```{r roots, echo = F}
 # checking for roots
 models %>%
-  select('ARIMA(1,0,2)(1,1,2)[7]') %>%
-  gg_arma()
+  select('SARIMA(1,0,2)(1,1,2)[7]') %>%
+  gg_arma()+
+  labs(title="Inverse AR and MA Roots",caption = "Figure 7: Inverse Roots")
 ```
 
-Fitted values of the $ARIMA(1,0,2)(1,1,2)_{7}$ model are transformed to the original scale in order to obtain a fitted plot as seen in Figure 8. The fit of the $ARIMA(1,0,2)(1,1,2)_{7}$ model (blue) is plotted on top of the number of unique visits (black). 
+Fitted values of the $SARIMA(1,0,2)(1,1,2)_{7}$ model are transformed to the original scale in order to obtain a fitted plot as seen in Figure 8. The fit of the $SARIMA(1,0,2)(1,1,2)_{7}$ model (blue) is plotted on top of the number of unique visits (black). 
 \newline
 
 ```{r Fig7, echo=F, message=FALSE, results='hide', warning=FALSE}
 # See the detailed summary for the model specifications
 arima_mdl_details = models %>%
   report() %>%
-  filter(.model == 'ARIMA(1,0,2)(1,1,2)[7]')
+  filter(.model == 'SARIMA(1,0,2)(1,1,2)[7]')
 
 # Plot the fitted versus actual values
 fit_data = models %>%
   augment() %>%
-  filter(.model == 'ARIMA(1,0,2)(1,1,2)[7]') %>%
+  filter(.model == 'SARIMA(1,0,2)(1,1,2)[7]') %>%
   select(Date, actual = diff, fit = .fitted)
-
-ggplot(fit_data, aes(x = Date)) +
-  
-  geom_line(aes(y = fit), color = 'black', alpha = 0.5, size = 0.5) +
-
-  geom_point(aes(y = actual), alpha = 0.5, color = 'darkred', size = 1) +
-  
-  labs(x = 'Date', y = expression(y[t]),
-       title = 'ARIMA(1,0,2)(1,1,2)[7] Model',
-       caption = 'Fitted model shown by black line and the actual values of the training set are shown in red.')
 
 # Back-transformation the data to the original scale
 dta = tsibble(train,
@@ -361,22 +345,15 @@ dta = dta %>%
   mutate(back_fit = fit + weekly_lag + annual_lag - total_lag)
 
 ggplot(dta, aes(x = Date)) +
-
-  geom_line(aes(y = UniqueVisits), alpha = 0.5, color = 'black', size = 0.5) +
-  
-  geom_point(aes(y = UniqueVisits), alpha = 0.5, color = 'black', size = 0.5) +
-  
-  #geom_line(aes(y = back_fit), color = 'darkred', linetype = 'dashed', size = 0.5) +
-  
-  geom_point(aes(y = back_fit), color = 'darkred', size = 0.5) +
-  
+  geom_point(aes(y = UniqueVisits), color = 'black') +
+  geom_line(aes(y = back_fit), color = '#437cb5', alpha= 0.8) +
   labs(x = 'Date', y = 'Unique visits',
-       title = 'Back-transformed ARIMA(1,0,2)(1,1,2)[7] Model',
-       caption = 'Fitted model shown by black line and the actual values of the training set are shown in red.')
-
+       title = 'Fitted SARIMA(1,0,2)(1,1,2)[7] Model',
+       caption = 'Figure 8: Fitted model (blue) vs Unique Visits (black) using training set')
 ```
+\newpage
 
-@fpp3 note that seasonal differencing of high order does not make a lot of sense. Seasonal versions of ARIMA models are designed for shorter periods such as 12 for monthly data or 4 for quarterly data. The `Arima()` and `auto.arima()` functions only allow for a seasonal period up to m=350, but in practice will usually run out of memory whenever the seasonal period is more than about 200. Hence, in addition to the ARMA model, we decided to run Prophet and dynamic linear regression models, which are in theory better at handling this type of seasonality.
+@fpp3 note that seasonal differencing of high order does not make a lot of sense. Seasonal versions of ARIMA models are designed for shorter periods such as 12 for monthly data or 4 for quarterly data. The `Arima()` and `auto.arima()` functions only allow for a seasonal period up to m=350, but in practice will usually run out of memory whenever the seasonal period is more than about 200. Hence, in addition to the SARIMA model, we decided to run Prophet and dynamic linear regression models, which are in theory better at handling this type of seasonality.
 
 
 ## Prophet
@@ -387,20 +364,24 @@ Prophet is a forecasting tool developed by @prophet that is based on an additive
 y(t)=g(t)+s(t)+h(t)+\epsilon_t
 \end{equation}
 
-where $g(t)$ is the trend function, $s(t)$ is the seasonality function, and $h(t)$ models holiday effect. It is known to work best with data that have strong seasonal effects and/or multiple seasonalities. 
+where $g(t)$ is the trend function, $s(t)$ is the seasonality function, and $h(t)$ models holiday effect. The authors state that it is designed for data that have strong seasonal effects and/or multiple seasonalities, making it very amenable to our dataset. 
 
 ## Dynamic Harmonic Regression
 
-When a time series exhibits complex seasonality, it is common to model the seasonal component using fourier terms. Dynamic Harmonic Regression (DHR) is based on the principal that a combination of sine and cosine functions can approximate any periodic function. We use a harmonic regression approach where the seasonal patterns are modeled by fourier terms and short-term dynamics are handled by an ARMA error. Thus, the model allows for multiple seasonalities of any length by including fourier terms of different frequencies. @prophet note that using 3 fourier terms for weekly seasonality, and 10 for yearly seasonality works well for most problems. Hence, our DHR model is formulated in (6).
+When a time series exhibits complex seasonality, it is common to model the seasonal component using fourier terms. Dynamic Harmonic Regression (DHR) is based on the principal that a combination of sine and cosine functions can approximate any periodic function. We use a harmonic regression approach where the seasonal patterns are modeled by fourier terms and short-term dynamics are handled by an ARMA error. Thus, the model allows for multiple seasonalities of any length by including fourier terms of different frequencies as can be seen in our proposed model (6).
 
 \begin{equation}
 y_t=\beta_0+s_7(t,m)+s_{365}(t,n)+\epsilon_t
 \end{equation}
 
+where
+
 $$s_7(t)=\sum_{i=1}^3[\alpha_i\sin(\frac{2\pi it}{7})+\beta_i\cos(\frac{2\pi it}{7})]$$
 
 $$s_{365}(t)=\sum_{i=1}^{10}[\gamma_i\sin(\frac{2\pi it}{365})+\delta_l\cos(\frac{2\pi it}{365})]$$
-where $\epsilon_t$ is modeled as a non-seasonal ARIMA process.
+\newline
+
+and where $\epsilon_t$ is modeled as a non-seasonal ARIMA process. Usually, the number of fourier terms is determined by an iterative approach that minimizes AIC or the like. However, @prophet note that using 3 fourier terms for weekly seasonality, and 10 for yearly seasonality works well for most problems. For computational reasons, we decided follow this guideline by picking the number of fourier terms in advance rather than by treating it as a hyperparameter.
 
 ```{r dhr, echo=F}
 dhrFit <- train %>%
@@ -419,6 +400,7 @@ dhrFc <- dhrFit %>% forecast(h = 341)
 # Plot the predictions for the transformed series
 arima_forecasts = models %>%
   forecast(h = '341 days')
+
 
 prophet_model = train %>%
   model(Prophet = prophet(UniqueVisits))
@@ -478,19 +460,23 @@ All the above models were trained on a training set, and the predictive accuracy
 MAE=\frac{1}{n}\sum_{i=1}^{n}|y_i-\hat y_i|
 \end{equation}
 
-In addition to these accuracy measures, we use a common-sense baseline as a sanity check, which serves as a benchmark for more advanced time series models. Given daily data with yearly seasonality, our common-sense baseline is to predict the number of unique visits at time t to be equal to the number of unique visits at t-365. In other words, a random walk model making a constant prediction with yearly seasonality, which is known as a seasonal naive model (11).
+In addition to these accuracy measures, we use a common-sense baseline as a sanity check, which serves as a benchmark for more advanced time series models. Given daily data with yearly seasonality, our common-sense baseline is to predict the number of unique visits at time t to be equal to the number of unique visits at t-365. In other words, a random walk model making a constant prediction with yearly seasonality, which is known as a seasonal naive model (9).
 
 \begin{equation}
 \hat x_t = x_{t-365}
 \end{equation}
 
-Table 2 and Figure 9 summarize the performance results of our models on the test set. All models outperformed the seasonal naive baseline as measured by MAE and RMSE. Overall, the $ARIMA(1,0,2)(1,1,2)_{7}$ model performed the best, having the lowest MAE and RMSE.
+Table 2 and Figure 9 summarize the performance results of our models on the test set. All models outperformed the seasonal naive baseline as measured by MAE and RMSE. Overall, the $SARIMA(1,0,2)(1,1,2)_{7}$ model performed the best, having the lowest MAE and RMSE.
  
 
 
 ```{r, echo = F}
 # Shows various measures of accuracy in the point estimates for the forecast
 accuracy(arima_forecasts, web) %>%
+  filter(.model %in% c("SARIMA(1,0,2)(1,1,2)[7]",
+                     "SARIMA(1,0,2)(0,1,2)[7]",
+                     "SARIMA(1,0,2)(1,1,1)[7]",
+                     "Seasonal Naive"))%>%
   add_row(accuracy(prophet_forecast, web)) %>%
   add_row(accuracy(dhrFc, web)) %>%
   select(-.type, -ACF1, -ME, -MPE, -MASE, -RMSSE, -MAPE) %>%
@@ -499,7 +485,8 @@ accuracy(arima_forecasts, web) %>%
   kable(digits=2, caption = "Model errors on test set.")%>%
   kable_styling(font_size = 12, latex_options = "hold_position")%>%
   row_spec(0, bold = TRUE)%>%
-  kableExtra::pack_rows("Baseline", 4,4 )
+  kableExtra::pack_rows("Baseline", 6,6 )%>%
+  kableExtra::pack_rows("Top 3 SARIMA", 1,3 )
 ```
 
 ```{r mae_plot, echo = F, fig.width= 5, fig.height=3.5, fig.align='center'}
@@ -508,10 +495,10 @@ accuracy(arima_forecasts, web) %>%
   add_row(accuracy(dhrFc, web)) %>%
   select(.model, MAE) %>%
   rename(Model = .model) %>%
-  filter(Model == c("SARMA(1,2)(0,2)[7]",
+  filter(Model %in% c("SARIMA(1,0,2)(1,1,2)[7]",
                     "Seasonal Naive", "Prophet", "Dynamic Harmonic Regression"))%>%
   pivot_longer(MAE, names_to = 'Metric', values_to = 'Value')%>%
-  ggplot(aes(x = factor(Model, levels= c("SARMA(1,2)(0,2)[7]",
+  ggplot(aes(x = factor(Model, levels= c("SARIMA(1,0,2)(1,1,2)[7]",
                                          "Dynamic Harmonic Regression",
                                          "Prophet","Seasonal Naive")), 
              y = Value, fill= Model)) +
@@ -521,46 +508,45 @@ accuracy(arima_forecasts, web) %>%
   xlab(NULL)+
   ylab("MAE")+
   scale_fill_manual(values = c("grey60",'grey60', '#437cb5','grey60'))+
-  theme(legend.position = "none", text=element_text(family = 'cm',size=14))+
-  scale_x_discrete(labels=c('SARMA(1,2)(0,2)[7]'="SARMA", 
+  theme(legend.position = "none", text=element_text(family = 'cm',size=13))+
+  scale_x_discrete(labels=c('SARIMA(1,0,2)(1,1,2)[7]'="SARIMA", 
                             'Dynamic Harmonic Regression'="DHR", 
                             'Seasonal Naive'="Baseline"))
 ```
 
+Figure 10 plots daily forecasts of our best performing model ($SARIMA(1,0,2)(1,1,2)_{7}$) on the test set.
+\newline
+
 
 ```{r echo = F}
 # Plot the forecasts
-ggplot(data = arima_data %>% filter(.model == 'ARIMA(1,0,2)(1,1,2)[7]'), aes(x = Date)) +
-  
-  geom_line(aes(y = back_pred), alpha = 0.5, linetype = 'dashed') +
-  
-  geom_point(aes(y = UniqueVisits), size = 1, color = 'darkred', alpha = 0.5) +
-
+ggplot(data = arima_data %>% filter(.model == 'SARIMA(1,0,2)(1,1,2)[7]'), aes(x = Date)) +
+  geom_line(aes(y = back_pred), color='#437cb5') +
+  geom_point(aes(y = UniqueVisits), size = 1, alpha=0.5,color = 'black') +
   # Add in the training data to show the historical data
-  geom_line(data = train, mapping = aes(x = Date, y = UniqueVisits), size = 0.5) +
-  
+  geom_line(data = train, mapping = aes(x = Date, y = UniqueVisits)) +
   coord_cartesian(xlim = c(as.Date('2019-07-14'), as.Date('2020-09-01'))) +
-  
-  labs(x = 'Date', y = 'Unique Visits', title = 'ARIMA(1,0,2)(1,1,2)[7]')
-```  
+  labs(x = 'Date', y = 'Unique visits',
+       title = 'SARIMA Forecast on Test Set',
+       caption = 'Figure 10: Forecast (blue) vs Unique Visits (black) on the test set')
 
-\newpage  
-# Conclusion  
+``` 
+\newline
 
-The d
+Finally, we are interested in making a forecast for the daily number of unique website visits over the next 30 days. Figure 11 shows such a 30-day forecast in blue, which has been generated using our best performing model. Table 13 uses the same forecast and displays the values for the first 7 days.
+\newline
 
-```{r, include = F}
+
+```{r, include = F, eval=F}
 sarima(web$diff, p = 1, d = 0, q = 2, P = 2, D = 0, Q = 2, S = 7, no.constant = T)
 sarima.for(web$diff, p = 1, d = 0, q = 2, P = 2, D = 0, Q = 2, S = 7, no.constant = T, n.ahead = 120)
 ```
 
-```{r final-forecast, echo = F, fig.height = 4.5}
+```{r final-forecast, echo = F}
 # Select and fit the final model with all the available data
 final_model = web %>%
-  model('ARIMA(1,0,2)(1,1,2)[7]' = ARIMA(diff ~ 0 + pdq(1,0,2) + PDQ(1,1,2, period = 7)))
+  model('SARIMA(1,0,2)(1,1,2)[7]' = ARIMA(diff ~ 0 + pdq(1,0,2) + PDQ(1,1,2, period = 7)))
 
-final_model %>%
-  report()
 
 # Select the forecast horizon in days (the rest of this code chunk is automated to update with the horizon)
 h = 30
@@ -568,7 +554,7 @@ h = 30
 # Forecast the final model
 final_data = final_model %>%
   
-  select('ARIMA(1,0,2)(1,1,2)[7]') %>%
+  select('SARIMA(1,0,2)(1,1,2)[7]') %>%
   
   forecast(h = paste(h, 'days')) %>%
   
@@ -606,35 +592,39 @@ for ( i in (length(final_data$weekly_lag) - h):length(final_data$weekly_lag) ) {
 }
 
 ggplot(data = final_data, aes(x = Date)) +
-  
-  geom_ribbon(aes(ymin = back_lower95, ymax = back_upper95), linetype = 'dashed', alpha = 0.5, fill = 'grey', color = 'darkgrey') +
-  
-  geom_line(aes(y = back_pred), alpha = 0.5, linetype = 'dashed', color = 'darkred') +
-
+  geom_ribbon(aes(ymin = back_lower95, ymax = back_upper95), 
+              linetype = 'dashed', alpha = 0.5,
+              fill = '#437cb5', color = '#437cb5') +
+  geom_line(aes(y = back_pred)) +
   geom_point(data = final_data %>% filter(Date > max(web$Date)),
               aes(x = Date, y = back_pred), alpha = 0.5, color = 'darkred') +
-
-  geom_line(data = web, aes(x = Date, y = UniqueVisits), size = 0.5, color = '#437cb5') +
-  
+  geom_line(data = final_data %>% filter(Date > max(web$Date)),
+              aes(x = Date, y = back_pred), color = '#437cb5', size=2)+
+  geom_line(data = web, aes(x = Date, y = UniqueVisits), alpha=0.5,size=1,color = 'black') +
   coord_cartesian(xlim = c(as.Date(max(web$Date)-10), max(web$Date)+h)) +
-  
-  labs(x = 'Date', y = 'Unique Visits', title = paste(h,'-Day ARIMA(1,0,2)(1,1,2)[7] Forecast', sep = ''))
-
-final_data %>%
-  mutate(PI_range = back_upper95 - back_lower95) %>%
-  filter(Date >= '2020-08-20') %>%
-  select(back_lower95, back_pred, back_upper95, PI_range)
-
+  labs(x = 'Date', y = 'Unique Visits', title = '30-Day Forecast of Unique Website Visits', caption = "Figure 11: 30-day forecast")+
+  scale_x_date(breaks = "days", date_labels = "%m/%d")+
+  theme(axis.text.x = element_text(angle = 60, hjust=1))
 ```
 
 ```{r echo = F}
 # Produce a table of the forecast
 final_data %>%
   filter(Date > max(web$Date)) %>%
+  head(7)%>%
   select(Date, back_lower95, back_pred, back_upper95) %>%
   kable(col.names = c('Date', 'Lower 95% CI', 'Forecast','Upper 95% CI'),
-        digits = 0, caption = paste(h, '-Day ARIMA(1,0,2)(1,1,2)[7]Forecast.', sep = ''))
+        digits = 0, caption = "Sample of 30-day forecast of page visits.")%>%
+  kable_styling(font_size = 12)%>%
+  row_spec(0, bold = TRUE)
 ```
+
+# Conclusion  
+
+In this analysis we developed and compared different time series models for the task of predicting unique page visits to an academic website. Despite the complex seasonality inherent in the data, the best performing model was a $SARIMA(1,0,2)(1,1,2)_{7}$ model with an MAE of 302 page visits per day. Provided that a forecast with this error meets the requirements of the website owner, this model could be implemented to predict future trends and better understand user behavior. Furthermore, this model could provide valuable insights for load balancing should the need arrive.
+
+One major constraint of this analysis is that we only used a univariate timeseries to make forecasts. Future research can be done to improve model performance by including additional features, as well as recording more data. Furthermore, additional model architectures, such as vector autoregressions and hierarchical models, can be explored to better understand the relationship between different factors and their effects on forecasting web traffic.
+
 \newpage
 
 # References
