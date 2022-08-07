@@ -310,7 +310,7 @@ ggplot(box_ljung_table, aes(x = h, y = lb_pvalue)) +
 ```
 
 
-Figure 7 plots the inverse AR and MA roots of our SARIMA model. A causal invertible model should have all the roots outside the unit circle. Equivalently, the inverse roots should lie inside the unit circle (shown in red). Hence, there dosn't appear to be any parameter redundancy.
+Figure 7 plots the inverse AR and MA roots of our SARIMA model. A causal invertible model should have all the roots outside the unit circle. Equivalently, the inverse roots should lie inside the unit circle (shown in red). Furthermore, there doesn't appear to be any parameter redundancy, since none of the roots are close to each other.
 
 
 ```{r roots, echo = F}
@@ -371,7 +371,7 @@ where $g(t)$ is the trend function, $s(t)$ is the seasonality function, and $h(t
 When a time series exhibits complex seasonality, it is common to model the seasonal component using fourier terms. Dynamic Harmonic Regression (DHR) is based on the principal that a combination of sine and cosine functions can approximate any periodic function. We use a harmonic regression approach where the seasonal patterns are modeled by fourier terms and short-term dynamics are handled by an ARMA error. Thus, the model allows for multiple seasonalities of any length by including fourier terms of different frequencies as can be seen in our proposed model (6).
 
 \begin{equation}
-y_t=\beta_0+s_7(t,m)+s_{365}(t,n)+\epsilon_t
+y_t=\beta_0+s_7(t)+s_{365}(t)+\epsilon_t
 \end{equation}
 
 where
