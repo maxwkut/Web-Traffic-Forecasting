@@ -103,7 +103,7 @@ Stationarity is a common assumption underlying many time series procedures. As s
 (ii) *the autocovariance function* $\gamma(s,t)=cov(x_s,x_t)=E[(x_s-\mu_s)(x_t-\mu_t)]$ *depends on times s and t only though their lagged difference.* 
 
 
-The strong seasonality that is apparent in Figure 1 is indicative of non-stationarity, since seasonality will affect the value of the time series at different times. Seasonality is defined as a recurring pattern at a fixed and known frequency based on the time of the year, week, or day. Figures 2 and 3 aim to identify the type of seasonality present in the data. Figure 2 plots a subset of the first several weeks and indicates that there exists weekly seasonality, whereas Figure 3 uses locally weighted scatterplot smoothing (Lowess) to emphasize the inherent annual seasonal behavior.  
+The strong seasonality that is apparent in Figure 1 is indicative of non-stationarity, since seasonality will affect the value of the time series at different times. Seasonality is defined as a recurring pattern at a fixed and known frequency based on the time of the year, week, or day. Figures 2 and 3 aim to identify the type of seasonality present in the data. Figure 2 plots a subset of the first several weeks and indicates that there exists weekly seasonality, whereas Figure 3 uses locally weighted scatterplot smoothing (LOWESS) to emphasize the inherent annual seasonal behavior.  
 \newline
 
 ```{r Fig2, echo= F, message=F, fig.height =5}
@@ -142,13 +142,16 @@ A popular approach in addressing non-stationarity due to seasonality is to elimi
   \triangledown_s x_t=x_t-x_{t-s}
 \end{equation}
 
-One challenge with the unique visits, however, is the complex seasonality. Multiple seasonal patterns exist within the time series, and the family of SARIMA(p,d,q)(P,D,Q)[s] models only allow for a single seasonal difference. In an attempt to handle the complex seasonality, we performed a two-step seasonal differencing approach as displayed in (2) by taking the annual difference of the time series, and then taking the weekly difference of the transformed time series from the previous step.
+One challenge with the unique visits, however, is the complex seasonality. Multiple seasonal patterns exist within the time series, and the family of seasonal ARIMA(p,d,q)(P,D,Q)[s] models only allow for a single seasonal difference. In an attempt to handle the complex seasonality, and to coerce the data into a form we could use with time series packages for estimating the models, we performed a two-step seasonal differencing approach as displayed in (2) and (3) by first taking the annual difference of the time series, and then taking the weekly difference of the transformed time series from the previous step.
 
+\begin{equation}
+  \tilde{x}_t = \triangledown_{365} x_t = (1 - B^{365})x_t = (x_t - x_{t-365})
+\end{equation}
 \begin{equation}
   x_t^* = \triangledown_7 \triangledown_{365} x_t = (1 - B^7)(1 - B^{365})x_t = (x_t - x_{t-7}) - (x_{t-365}-x_{t-372})
 \end{equation}
 
-where B is the backshift operator. Time plots of the aforementioned transformation steps are displayed in Figure 4. The differenced series $x_t^*$ appears to be stationary with a constant mean and variance.
+where B is the backshift operator. Time plots of the aforementioned transformation steps are displayed in Figure 4. The series $\{ \tilde{x}_t\}$ does not appear stationary, but the series $\{x_t^*\}$ appears to be stationary with a constant mean and variance. Our approach was to treat the annually differenced time series as the input time series, and fitting various $SARIMA(p,d,q)(P,1,Q)_s$ models where the seasonal lag is the weekly difference to in effect fit models to $\{x_t^*\}$.
 \newline
 
 ```{r Fig4, echo=F, message=F, fig.height=4}
@@ -206,10 +209,9 @@ ggplot(train, aes(Date, annual_diff)) +
 ggplot(train, aes(Date, diff)) +
   geom_line(color = '#437cb5') +
   labs(subtitle = "Weekly Differencing (Of Previous Difference)", caption = 'Figure 4: Time plots of differenced series', y = '')
-```
-\newpage
+```  
 
-The ACF and PACF of the differenced series $x_t^*$ are displayed in Figure 5. Neither the ACF nor the PACF seems to cut off after a certain lag, which would be indicative of an AR or MA process. Rather, both of them appear to tail off over time, making it difficult to determine specific orders for the family of ARMA(p,q) models defined in (3).
+The ACF and PACF of the differenced series $x_t^*$ are displayed in Figure 5. Neither the ACF nor the PACF seems to cut off after a certain lag, which would be indicative of an AR or MA process. Rather, both of them appear to tail off over time, making it difficult to determine specific orders for the family of $\text{SARIMA}(p,d,q)(P,1,Q)_7$ models defined in (4).
 \newline
 
 ```{r Fig5, echo=F, message=F, fig.height=5}
@@ -230,14 +232,16 @@ Problems with this approach:
 -->
 
 \begin{equation}
-   x_t = \alpha + \phi_1x_{t-1}+\cdot\cdot\cdot+\phi_px_{t-p}+w_t+\theta_1\omega_{t-1}+\cdot\cdot\cdot+\theta_p\omega_{t-q}\\
+   \tilde{x}_t = \alpha + \phi_1 \tilde{x}_{t-1}+\cdot\cdot\cdot+\phi_p \tilde{x}_{t-p}+w_t+\theta_1\omega_{t-1}+\cdot\cdot\cdot+\theta_p\omega_{t-q}\\
 \end{equation}
-\begin{center}where $\phi_p\neq0, \theta_p\neq0,\sigma_w^2>0$, and the model is causal and invertible.\end{center}    
 
+\begin{center} where $\phi_p\neq0, \theta_p\neq0,\sigma_w^2>0$, and the model is causal and invertible.\end{center}  
 
-We opted to fit a range of SARIMA(p,q) models with small orders, with the final model selected based on AIC and BIC. The model selection criterion for the fitted SARIMA models is shown in the Table 1 below. All of the proposed SARIMA models are fitted using the same order of differencing to ensure that their AIC and BIC are comparable.
+We opted to fit a range of $\text{SARIMA}(p,d,q)(P,D,Q)_7$ models with small orders, with the final model selected based on AIC and BIC. The model selection criterion for the fitted SARIMA models is shown in the Table 1 below. All of the proposed SARIMA models are fitted using the same order of differencing to ensure that their AIC and BIC are comparable. We decided to choose the $\text{SARIMA}(1,0,2)(1,1,2)_{7}$ model as it performed best in terms of AIC and BIC. Its parameters are estimated via maximum likelihood and are displayed in (5).
 
-\newpage
+\begin{equation}
+  \hat{\tilde{x}}_t = 0.94\tilde{x}^{*}_{t-1}+ 0.23\tilde{x}^{*}_{t-7}+\omega_t - 0.34\omega_{t-1} - 0.25\omega_{t-2}-0.65\omega_{t-7}-0.18\omega_{t-14}
+\end{equation}
 
 ```{r arma, echo=F}
 # Fit various models to the training set
@@ -268,14 +272,13 @@ models %>%
   row_spec(0, bold = TRUE)
 ```
 
-We decided to choose the $SARIMA(1,0,2)(1,1,2)_{7}$ model as it performed best in terms of AIC and BIC. Its parameters are estimated via maximum likelihood and are displayed in (4).
+```{r echo = F}
+models %>%
+  select('SARIMA(1,0,2)(1,1,2)[7]') %>% report()
+```
 
 
-\begin{equation}
-  \hat{x}_t = 0.94x_{t-1}+ 0.23x_{t-7}+\omega_t - 0.34\omega_{t-1} - 0.25\omega_{t-2}-0.65\omega_{t-7}-0.18\omega_{t-14}
-\end{equation}  
-
-Figure 6 displays of plot of the residuals of the fitted $SARIMA(1,0,2)(1,1,2)_{7}$ model. Initially, the residuals seem to behave like white noise, being centered around zero with a constant variance. However, further analysis of the autocorrelation plot and formal testing using the Box-Ljung test indicate that the residuals are correlated (i.e., they are not white noise). The autocorrelation in the residuals does appear small for most lags, given how similar the various models are this is likely the best fit we can obtain from the ARMA(p,q) modeling procedure.
+Figure 6 displays of plot of the residuals of the fitted $\text{SARIMA}(1,0,2)(1,1,2)_{7}$ model. Initially, the residuals seem to behave like white noise, being centered around zero with a constant variance. However, further analysis of the autocorrelation plot and formal testing using the Box-Ljung test indicate that the residuals are correlated (i.e., they are not white noise). The autocorrelation in the residuals does appear small for most lags, given how similar the various models are this is likely the best fit we can obtain from the $\text{SARIMA}(p,d,q)(P,1,Q)_{7}$ modeling procedure.
 \newline
 
 ```{r Fig6, echo=FALSE, warning=F}
@@ -321,7 +324,7 @@ models %>%
   labs(title="Inverse AR and MA Roots",caption = "Figure 7: Inverse Roots")
 ```
 
-Fitted values of the $SARIMA(1,0,2)(1,1,2)_{7}$ model are transformed to the original scale in order to obtain a fitted plot as seen in Figure 8. The fit of the $SARIMA(1,0,2)(1,1,2)_{7}$ model (blue) is plotted on top of the number of unique visits (black). 
+Fitted values of the $\text{SARIMA}(1,0,2)(1,1,2)_{7}$ model are transformed to the original scale in order to obtain a fitted plot as seen in Figure 8. The fit of the $\text{SARIMA}(1,0,2)(1,1,2)_{7}$ model (blue) is plotted on top of the number of unique visits (black). 
 \newline
 
 ```{r Fig7, echo=F, message=FALSE, results='hide', warning=FALSE}
@@ -351,14 +354,13 @@ ggplot(dta, aes(x = Date)) +
        title = 'Fitted SARIMA(1,0,2)(1,1,2)[7] Model',
        caption = 'Figure 8: Fitted model (blue) vs Unique Visits (black) using training set')
 ```
-\newpage
 
-@fpp3 note that seasonal differencing of high order does not make a lot of sense. Seasonal versions of ARIMA models are designed for shorter periods such as 12 for monthly data or 4 for quarterly data. The `Arima()` and `auto.arima()` functions only allow for a seasonal period up to m=350, but in practice will usually run out of memory whenever the seasonal period is more than about 200. Hence, in addition to the SARIMA model, we decided to run Prophet and dynamic linear regression models, which are in theory better at handling this type of seasonality.
+@fpp3 note that seasonal differencing of high order does not make a lot of sense. Seasonal versions of ARIMA models are designed for shorter seasonal periods such as s = 12 for monthly data or s = 4 for quarterly data. The `Arima()` and `auto.arima()` functions only allow for a seasonal period up to m = 350, but in practice will usually run out of memory whenever the seasonal period is more than about 200. We attempted to work around these issues using the annually differenced time series $\{\tilde{x}_t\}$ and then using the smaller order of seasonal differencing. Our initial results from the ARIMA family of models produced reasonable results, but other models that explicitly handle complex seasonality were considered. We decided to run the Facebook Prophet model, in addition to dynamic harmonic regression models, which are in theory better at handling this type of seasonality.
 
 
-## Prophet
+## Facebook Prophet
 
-Prophet is a forecasting tool developed by @prophet that is based on an additive regression model with three parts as described in (5).
+Prophet is a forecasting tool developed by @prophet that is based on an additive regression model with three parts as described in (6).
 
 \begin{equation}
 y(t)=g(t)+s(t)+h(t)+\epsilon_t
@@ -368,7 +370,7 @@ where $g(t)$ is the trend function, $s(t)$ is the seasonality function, and $h(t
 
 ## Dynamic Harmonic Regression
 
-When a time series exhibits complex seasonality, it is common to model the seasonal component using fourier terms. Dynamic Harmonic Regression (DHR) is based on the principal that a combination of sine and cosine functions can approximate any periodic function. We use a harmonic regression approach where the seasonal patterns are modeled by fourier terms and short-term dynamics are handled by an ARMA error. Thus, the model allows for multiple seasonalities of any length by including fourier terms of different frequencies as can be seen in our proposed model (6).
+When a time series exhibits complex seasonality, it is common to model the seasonal component using fourier terms. Dynamic Harmonic Regression (DHR) is based on the principal that a combination of sine and cosine functions can approximate any periodic function. We use a harmonic regression approach where the seasonal patterns are modeled by fourier terms and short-term dynamics are handled by an ARMA error. Thus, the model allows for multiple seasonal components of any length by including fourier terms of different frequencies as can be seen in our proposed model (7).
 
 \begin{equation}
 y_t=\beta_0+s_7(t)+s_{365}(t)+\epsilon_t
@@ -376,12 +378,12 @@ y_t=\beta_0+s_7(t)+s_{365}(t)+\epsilon_t
 
 where
 
-$$s_7(t)=\sum_{i=1}^3[\alpha_i\sin(\frac{2\pi it}{7})+\beta_i\cos(\frac{2\pi it}{7})]$$
+$$s_7(t)=\sum_{i=1}^3\Bigg[\alpha_i\sin \Bigg( \frac{2\pi it}{7} \Bigg) + \beta_i\cos \Bigg( \frac{2\pi it}{7} \Bigg) \Bigg]$$
 
-$$s_{365}(t)=\sum_{i=1}^{10}[\gamma_i\sin(\frac{2\pi it}{365})+\delta_l\cos(\frac{2\pi it}{365})]$$
+$$s_{365}(t)=\sum_{i=1}^{10} \Bigg[ \gamma_i\sin \Bigg( \frac{2\pi it}{365} \Bigg)+\delta_l\cos \Bigg(\frac{2\pi it}{365} \Bigg) \Bigg]$$
 \newline
 
-and where $\epsilon_t$ is modeled as a non-seasonal ARIMA process. Usually, the number of fourier terms is determined by an iterative approach that minimizes AIC or the like. However, @prophet note that using 3 fourier terms for weekly seasonality, and 10 for yearly seasonality works well for most problems. For computational reasons, we decided follow this guideline by picking the number of fourier terms in advance rather than by treating it as a hyperparameter.
+and where $\epsilon_t$ is modeled as a non-seasonal ARIMA process. Usually, the number of fourier terms is determined by an iterative approach that minimizes some model selection criterion, such as AIC. However, @prophet note that using 3 fourier terms for weekly seasonality, and 10 for annual seasonality works well for most problems. For computational reasons, we decided follow this guideline by picking the number of fourier terms in advance rather than by treating it as a hyperparameter.
 
 ```{r dhr, echo=F}
 dhrFit <- train %>%
@@ -460,13 +462,13 @@ All the above models were trained on a training set, and the predictive accuracy
 MAE=\frac{1}{n}\sum_{i=1}^{n}|y_i-\hat y_i|
 \end{equation}
 
-In addition to these accuracy measures, we use a common-sense baseline as a sanity check, which serves as a benchmark for more advanced time series models. Given daily data with yearly seasonality, our common-sense baseline is to predict the number of unique visits at time t to be equal to the number of unique visits at t-365. In other words, a random walk model making a constant prediction with yearly seasonality, which is known as a seasonal naive model (9).
+In addition to these accuracy measures, we use a common-sense baseline as a sanity check, which serves as a benchmark for more advanced time series models. Given daily data with annual seasonality, our common-sense baseline is to predict the number of unique visits at time t to be equal to the number of unique visits at t-365. In other words, a random walk model making a constant prediction with annual seasonality, which is known as a seasonal naive model (10).
 
 \begin{equation}
 \hat x_t = x_{t-365}
 \end{equation}
 
-Table 2 and Figure 9 summarize the performance results of our models on the test set. All models outperformed the seasonal naive baseline as measured by MAE and RMSE. Overall, the $SARIMA(1,0,2)(1,1,2)_{7}$ model performed the best, having the lowest MAE and RMSE.
+Table 2 and Figure 9 summarize the performance results of our models on the test set. All models outperformed the seasonal naive baseline as measured by MAE and RMSE. Overall, the $\text{SARIMA}(1,0,2)(1,1,2)_{7}$ model performed the best, having the lowest MAE and RMSE.
  
 
 
@@ -511,10 +513,11 @@ accuracy(arima_forecasts, web) %>%
   theme(legend.position = "none", text=element_text(family = 'cm',size=13))+
   scale_x_discrete(labels=c('SARIMA(1,0,2)(1,1,2)[7]'="SARIMA", 
                             'Dynamic Harmonic Regression'="DHR", 
-                            'Seasonal Naive'="Baseline"))
+                            'Seasonal Naive'="Baseline"))+
+  scale_y_continuous(limits = c(0,510), expand = c(0,0))
 ```
 
-Figure 10 plots daily forecasts of our best performing model ($SARIMA(1,0,2)(1,1,2)_{7}$) on the test set.
+Figure 10 plots daily forecasts of our best performing model ($\text{SARIMA}(1,0,2)(1,1,2)_{7}$) on the test set.
 \newline
 
 
@@ -621,9 +624,9 @@ final_data %>%
 
 # Conclusion  
 
-In this analysis we developed and compared different time series models for the task of predicting unique page visits to an academic website. Despite the complex seasonality inherent in the data, the best performing model was a $SARIMA(1,0,2)(1,1,2)_{7}$ model with an MAE of 302 page visits per day. Provided that a forecast with this error meets the requirements of the website owner, this model could be implemented to predict future trends and better understand user behavior. Furthermore, this model could provide valuable insights for load balancing should the need arrive.
+In this analysis we developed and compared different time series models for the task of predicting unique page visits to an academic website. Despite the complex seasonality inherent in the data, the best performing model was a $\text{SARIMA}(1,0,2)(1,1,2)_{7}$ model with an MAE of 302 page visits per day. Provided that a forecast with this error meets the requirements of the website owner, this model could be implemented to predict future trends and better understand user behavior. Furthermore, this model could provide valuable insights for load balancing if necessary.
 
-One major constraint of this analysis is that we only used a univariate timeseries to make forecasts. Future research can be done to improve model performance by including additional features, as well as recording more data. Furthermore, additional model architectures, such as vector autoregressions and hierarchical models, can be explored to better understand the relationship between different factors and their effects on forecasting web traffic.
+One major constraint of this analysis is that we only used a univariate time series to make forecasts. Future research can be done to improve model performance by including additional features, as well as recording more data. Furthermore, additional model architectures, such as modifications to SARIMAX models to handle complex seasonality, vector autoregression, and hierarchical models, can be explored to better understand the relationship between different factors and their effects on forecasting daily web traffic.
 
 \newpage
 
