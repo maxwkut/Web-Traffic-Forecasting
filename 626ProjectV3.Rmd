@@ -240,22 +240,22 @@ Problems with this approach:
 We opted to fit a range of $\text{SARIMA}(p,d,q)(P,D,Q)_7$ models with small orders, with the final model selected based on AIC and BIC. The model selection criterion for the fitted SARIMA models is shown in the Table 1 below. All of the proposed SARIMA models are fitted using the same order of differencing to ensure that their AIC and BIC are comparable. We decided to choose the $\text{SARIMA}(1,0,2)(1,1,2)_{7}$ model as it performed best in terms of AIC and BIC. Its parameters are estimated via maximum likelihood and are displayed in (5).
 
 \begin{equation}
-  \hat{\tilde{x}}_t = 0.94\tilde{x}^{*}_{t-1}+ 0.23\tilde{x}^{*}_{t-7}+\omega_t - 0.34\omega_{t-1} - 0.25\omega_{t-2}-0.65\omega_{t-7}-0.18\omega_{t-14}
+  \hat{\tilde{x}}_t = 0.94\tilde{x}_{t-1} + 0.23\tilde{x}_{t-7}+\omega_t - 0.33\omega_{t-1} - 0.25\omega_{t-2}-1.87\omega_{t-7}-0.87\omega_{t-14}
 \end{equation}
 
 ```{r arma, echo=F}
 # Fit various models to the training set
 models = train %>%
   model('Seasonal Naive' = fable::SNAIVE(diff ~ lag(365)),                        # Baseline for comparison (seasonal naive model)
-        'SARIMA(0,0,1)(0,1,0)[7]' = ARIMA(diff ~ 1 + pdq(0, 0, 1) + PDQ(0, 1, 0, period = 7)),
-        'SARIMA(1,0,0)(0,1,0)[7]' = ARIMA(diff ~ 1 + pdq(1, 0, 0) + PDQ(0, 1, 0, period = 7)),
-        'SARIMA(1,0,1)(0,1,0)[7]' = ARIMA(diff ~ 1 + pdq(1, 0, 1) + PDQ(0, 1, 0, period = 7)),
-        'SARIMA(1,0,2)(0,1,0)[7]' = ARIMA(diff ~ 1 + pdq(1, 0, 2) + PDQ(0, 1, 0, period = 7)),
-        'SARIMA(1,0,2)(0,1,1)[7]' = ARIMA(diff ~ 1 + pdq(1, 0, 2) + PDQ(0, 1, 1, period = 7)),
-        'SARIMA(1,0,2)(1,1,1)[7]' = ARIMA(diff ~ 1 + pdq(1, 0, 2) + PDQ(1, 1, 1, period = 7)),
-        'SARIMA(1,0,2)(0,1,2)[7]' = ARIMA(diff ~ 1 + pdq(1, 0, 2) + PDQ(0, 1, 2, period = 7)),
-        'SARIMA(1,0,2)(1,1,2)[7]' = ARIMA(diff ~ 1 + pdq(1, 0, 2) + PDQ(1, 1, 2, period = 7)),
-        'SARIMA(1,0,2)(2,1,2)[7]' = ARIMA(diff ~ 1 + pdq(1, 0, 2) + PDQ(2, 1, 2, period = 7)))
+        'SARIMA(0,0,1)(0,1,0)[7]' = ARIMA(diff ~ 0 + pdq(0, 0, 1) + PDQ(0, 1, 0, period = 7)),
+        'SARIMA(1,0,0)(0,1,0)[7]' = ARIMA(diff ~ 0 + pdq(1, 0, 0) + PDQ(0, 1, 0, period = 7)),
+        'SARIMA(1,0,1)(0,1,0)[7]' = ARIMA(diff ~ 0 + pdq(1, 0, 1) + PDQ(0, 1, 0, period = 7)),
+        'SARIMA(1,0,2)(0,1,0)[7]' = ARIMA(diff ~ 0 + pdq(1, 0, 2) + PDQ(0, 1, 0, period = 7)),
+        'SARIMA(1,0,2)(0,1,1)[7]' = ARIMA(diff ~ 0 + pdq(1, 0, 2) + PDQ(0, 1, 1, period = 7)),
+        'SARIMA(1,0,2)(1,1,1)[7]' = ARIMA(diff ~ 0 + pdq(1, 0, 2) + PDQ(1, 1, 1, period = 7)),
+        'SARIMA(1,0,2)(0,1,2)[7]' = ARIMA(diff ~ 0 + pdq(1, 0, 2) + PDQ(0, 1, 2, period = 7)),
+        'SARIMA(1,0,2)(1,1,2)[7]' = ARIMA(diff ~ 0 + pdq(1, 0, 2) + PDQ(1, 1, 2, period = 7)),
+        'SARIMA(1,0,2)(2,1,2)[7]' = ARIMA(diff ~ 0 + pdq(1, 0, 2) + PDQ(2, 1, 2, period = 7)))
 
 
 # Retrieves the model selection criterion for the panel of ARIMA models fitted
